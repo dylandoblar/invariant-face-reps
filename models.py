@@ -9,7 +9,7 @@ from tensorflow.keras.models import load_model, Sequential
 
 
 class TemplateModel:
-    def __init__(self, template_dir, repr_type='HOG', pca_dim=0, standardize=True, thresh=0.99999, vgg_weight_path=None):
+    def __init__(self, template_dir, repr_type='HOG', pca_dim=0, standardize=True, thresh=0.99999, vgg_model_path=None):
         '''
         pca_dim(int): if 0, do not perform PCA
         '''
@@ -20,7 +20,7 @@ class TemplateModel:
             self.compute_feats = self.compute_hog_feats
         elif repr_type == 'VGG':
             self.compute_feats = self.compute_vgg_feats
-            self.vgg_weight_path = vgg_weight_path
+            self.vgg_model_path = vgg_model_path
         else:
             raise ValueError("repr_type must be one of 'HOG' or 'VGG'")
         # TODO(ddoblar): add ability to customize size of dataset
@@ -45,9 +45,9 @@ class TemplateModel:
         return hog(img, block_norm='L2-Hys')
 
     def compute_vgg_feats(self, img):
-        if self.vgg_face_path is None or not os.path.exists(self.vgg_weight_path): raise FileExistsError("please pass valid weight file")
+        if self.vgg_model_path is None or not os.path.exists(self.vgg_model_path): raise FileExistsError("please pass valid model (.hd5) file")
         img = np.expand_dims(img, axis=0)
-        model = load_model(self.vgg_face_path)
+        model = load_model(self.vgg_model_path)
         new_model = Sequential()
         for layer in model.layers[:-1]:  # just exclude last layer from copying
             new_model.add(layer)
