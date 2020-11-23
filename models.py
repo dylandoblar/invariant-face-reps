@@ -5,10 +5,11 @@ from skimage import io
 from sklearn.preprocessing import StandardScaler
 from sklearn import decomposition
 from sklearn.metrics.pairwise import cosine_similarity
+from tensorflow.keras.models import load_model, Sequential
 
 
 class TemplateModel:
-    def __init__(self, template_dir, repr_type='HOG', pca_dim=0, standardize=True, thresh=0.99999):
+    def __init__(self, template_dir, repr_type='HOG', pca_dim=0, standardize=True, thresh=0.99999, vgg_weight_path=None):
         '''
         pca_dim(int): if 0, do not perform PCA
         '''
@@ -19,6 +20,7 @@ class TemplateModel:
             self.compute_feats = self.compute_hog_feats
         elif repr_type == 'VGG':
             self.compute_feats = self.compute_vgg_feats
+            self.vgg_weight_path = vgg_weight_path
         else:
             raise ValueError("repr_type must be one of 'HOG' or 'VGG'")
         # TODO(ddoblar): add ability to customize size of dataset
@@ -43,7 +45,14 @@ class TemplateModel:
         return hog(img, block_norm='L2-Hys')
 
     def compute_vgg_feats(self, img):
-        raise NotImplementedError
+        if self.vgg_face_path is None or not os.path.exists(self.vgg_weight_path): raise FileExistsError("please pass valid weight file")
+        img = np.expand_dims(img, axis=0)
+        model = load_model(self.vgg_face_path)
+        new_model = Sequential()
+        for layer in model.layers[:-1]:  # just exclude last layer from copying
+            new_model.add(layer)
+        activations = new_model.predict(img)
+        return activations
 
     def compute_projector(self, template_feats):
         '''
