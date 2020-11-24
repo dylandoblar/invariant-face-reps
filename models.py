@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from pprint import pprint
+from tensorflow.keras.models import load_model, Sequential
 
 
 class TemplateModel:
@@ -21,6 +22,7 @@ class TemplateModel:
         thresh=0.,
         num_template_ids=0,
         num_template_samples_per_id=0,
+        vgg_model_path=None,
     ):
         '''
         template_dir(str): root directory of the template images
@@ -42,6 +44,7 @@ class TemplateModel:
             self.compute_feats = self.compute_hog_feats
         elif repr_type == 'VGG':
             self.compute_feats = self.compute_vgg_feats
+            self.vgg_model_path = vgg_model_path
         elif repr_type == 'RANDOM':
             self.compute_feats = self.compute_random_feats
         else:
@@ -77,7 +80,15 @@ class TemplateModel:
         return hog(img, block_norm='L2-Hys', transform_sqrt=True)
 
     def compute_vgg_feats(self, img):
-        raise NotImplementedError
+        if self.vgg_model_path is None or not os.path.exists(self.vgg_model_path):
+            raise FileExistsError("Please pass valid model (.hd5) file.")
+        img = np.expand_dims(img, axis=0)
+        model = load_model(self.vgg_model_path)
+        new_model = Sequential()
+        for layer in model.layers[:-1]:  # just exclude last layer from copying
+            new_model.add(layer)
+        activations = new_model.predict(img)
+        return activations
 
     def compute_random_feats(self, img, dim=256):
         '''
