@@ -10,6 +10,8 @@ from tqdm import tqdm
 from pprint import pprint
 from tensorflow.keras.models import load_model, Sequential
 
+from utils import gen_balanced_pairs_from_dataset, scores_to_acc, load_dataset
+
 
 class TemplateModel:
     def __init__(
@@ -25,6 +27,13 @@ class TemplateModel:
         vgg_model_path=None,
     ):
         '''
+        Implementation of the model described in Figure 5 of "Learning invariant representations
+        and applications to face verification" by Liao et al., with the ability to use features
+        from VGG-Face instead of HOG features in the feature extraction phase (the penultimate
+        activations of a pre-trained VGG-Face model are used in this case). Refer to the paper
+        for model details:
+        https://papers.nips.cc/paper/2013/file/ad3019b856147c17e82a5bead782d2a8-Paper.pdf
+
         template_dir(str): root directory of the template images
         repr_type(str): type of feature for model to use; one of 'HOG' or 'VGG' or 'RANDOM'
                         (if VGG, embeddings from the penultimate layer of pretrained VGG-Face
@@ -50,7 +59,6 @@ class TemplateModel:
         else:
             raise ValueError("repr_type must be one of 'HOG', 'VGG', or 'RANDOM'")
 
-        # TODO(ddoblar): add ability to customize size of dataset
         self.template_img_id_pairs = load_dataset(
             template_dir,
             num_ids=num_template_ids,
@@ -111,7 +119,10 @@ class TemplateModel:
 
     def score(self, ex1, ex2):
         '''
-        compute similarity score for ex1 and ex2
+        Compute the similarity score for ex1 and ex2.
+
+        ex1(ndarray): array of pixels for the first identity
+        ex2(ndarray): array of pixels for the second identity
         '''
         ex1_feats = cosine_similarity(self.projector.T, self.compute_feats(ex1).reshape(1, -1)).T
         ex2_feats = cosine_similarity(self.projector.T, self.compute_feats(ex2).reshape(1, -1)).T
@@ -135,63 +146,13 @@ class TemplateModel:
 
     def predict(self, ex1, ex2):
         '''
-        predict whether ex1 and ex2 are same identity
+        Predict whether ex1 and ex2 have the same identity.
+
+        ex1(ndarray): array of pixels for the first identity
+        ex2(ndarray): array of pixels for the second identity
         '''
         score = self.score(ex1, ex2)
         return int(score > self.threshold)
-
-    def evaluate(self, dataset, num_samples=-1):
-        '''
-        Evaluates the model on pairs of examples in the dataset specified by dataset_path.
-        Returns accuracy on sampled pairs of examples in the dataset. Classes are balanced such
-        that there are equal number of same and different pairs in the evaluation set.
-
-        num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
-                          (2) different labels for tuning the threshold. If -1, use as many
-                          samples as possible while keeping classes balanced.
-        '''
-        print('Evaluating model:')
-        pairs_same_id = []
-        pairs_diff_id = []
-        for idx1 in range(len(dataset)):
-            _, label1 = dataset[idx1]
-            for idx2 in range(idx1+1, len(dataset)):
-                _, label2 = dataset[idx2]
-                if label1 == label2:
-                    pairs_same_id.append((idx1, idx2))
-                else:
-                    pairs_diff_id.append((idx1, idx2))
-        num_samples_per_label = min(len(pairs_same_id), len(pairs_diff_id))
-        if num_samples != -1:
-            num_samples_per_label = min(num_samples // 2, num_samples_per_label)
-        pairs_same_id = random.sample(pairs_same_id, num_samples_per_label)
-        pairs_diff_id = random.sample(pairs_diff_id, num_samples_per_label)
-        pairs = pairs_same_id + pairs_diff_id
-
-        num_correct = 0
-        num_pairs = 0
-        wrong_pairs = []
-
-        for idx1, idx2 in tqdm(pairs):
-            ex1, label1 = dataset[idx1]
-            ex2, label2 = dataset[idx2]
-            output = self.predict(ex1, ex2)
-            label = int(label1 == label2)
-            num_pairs += 1
-            if output == label:
-                num_correct += 1
-            else:
-                wrong_pairs.append((label1, label2))
-
-        accuracy = num_correct / num_pairs
-        # print(f"[evaluate] num_correct : {num_correct}")
-        # print(f"[evaluate] num_pairs : {num_pairs}")
-        print(f"[evaluate] accuracy : {accuracy}")
-        # print(f"wrong_pairs :")
-        # pprint(wrong_pairs)
-        # print(f'number wrong with same label : {sum([a == b for a, b in wrong_pairs])}')
-        # print(f'number wrong with diff label : {sum([a != b for a, b in wrong_pairs])}')
-        return accuracy
 
     def tune_threshold(self, num_samples=-1):
         '''
@@ -211,28 +172,12 @@ class TemplateModel:
         Returns: tuned threshold(float)
         '''
         print('Tuning threshold:')
-        dataset = self.template_img_id_pairs
-        pairs_same_id = []
-        pairs_diff_id = []
-        for idx1 in range(len(dataset)):
-            _, label1 = dataset[idx1]
-            for idx2 in range(idx1+1, len(dataset)):
-                _, label2 = dataset[idx2]
-                if label1 == label2:
-                    pairs_same_id.append((idx1, idx2))
-                else:
-                    pairs_diff_id.append((idx1, idx2))
-        num_samples_per_label = min(len(pairs_same_id), len(pairs_diff_id))
-        if num_samples != -1:
-            num_samples_per_label = min(num_samples // 2, num_samples_per_label)
-        pairs_same_id = random.sample(pairs_same_id, num_samples_per_label)
-        pairs_diff_id = random.sample(pairs_diff_id, num_samples_per_label)
-        pairs = pairs_same_id + pairs_diff_id
+        pairs = gen_balanced_pairs_from_dataset(self.template_img_id_pairs, num_samples)
 
         score_label_pairs = []
         for idx1, idx2 in tqdm(pairs):
-            ex1, label1 = dataset[idx1]
-            ex2, label2 = dataset[idx2]
+            ex1, label1 = self.template_img_id_pairs[idx1]
+            ex2, label2 = self.template_img_id_pairs[idx2]
             score = self.score(ex1, ex2)
             label = int(label1 == label2)
             score_label_pairs.append((score, label))
@@ -251,69 +196,3 @@ class TemplateModel:
         print(f"Accuracy on the templates with tuned threshold : {template_acc}")
 
         return thresh
-
-
-def scores_to_acc(score_label_pairs, thresh):
-    return sum([int(int(score > thresh) == label) for score, label in score_label_pairs]) /\
-        len(score_label_pairs)
-
-
-def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False):
-    '''
-    Loads a dataset from a directory with structure:
-        dataset_dir
-            identity1
-                id1ex1.png
-                id1ex2.png
-                ...
-            ...
-            identityN
-                idNex1.png
-                idNex2.png
-                ...
-    and returns an iterator of (X, y) tuples where X is an array of pixels and y is the ID.
-
-    dataset_dir(str): path to root of dataset
-    num_ids(int): number of IDs to subsample (if 0, use all IDs in the dataset)
-    num_samples_per_id(int): number of samples to take for each ID (if 0, use all samples for IDs)
-    '''
-    labels = os.listdir(dataset_dir)
-    if num_ids > 0:
-        labels = random.sample(labels, num_ids)
-    example_fname_label_pairs = [
-        (os.path.join(dataset_dir, label, fname), label)
-        for label in labels
-        for fname in (os.listdir(os.path.join(dataset_dir, label)) if num_samples_per_id == 0 else
-                      random.sample(os.listdir(os.path.join(dataset_dir, label)),
-                                    num_samples_per_id))
-    ]
-    img_label_pairs = [(io.imread(fname), label) for fname, label in example_fname_label_pairs]
-    if shuffle:
-        random.shuffle(img_label_pairs)  # shuffle in place
-    return img_label_pairs
-
-
-if __name__ == '__main__':
-    random.seed(1612)
-
-    data = 'normal'  # 'extreme'  # extreme or normal dataset
-    print(f'Experiment type : {data} illumination')
-
-    template_dir = f'/Users/dylan/projects/face-illumination-invariance/data/ill_{data}_debug/img'
-    model = TemplateModel(
-        template_dir,
-        repr_type='HOG',
-        # repr_type='RANDOM',  # sanity check that with large sample sizes accuracy is nearly 0.5
-        pca_dim=100,
-        standardize=True,
-        num_thresh_samples=100,
-        # thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
-        num_template_ids=10,
-        num_template_samples_per_id=30,
-    )
-
-    test_dir = f'/Users/dylan/projects/face-illumination-invariance/data/ill_{data}_overfit/img'
-    # dataset = load_dataset(template_dir)  # sanity check: model does well on the template set
-    dataset = load_dataset(test_dir)
-    acc = model.evaluate(dataset, num_samples=100)
-    print(f"model accuracy on the balanced test set : {acc}")
