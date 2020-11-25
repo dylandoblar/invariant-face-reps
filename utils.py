@@ -35,7 +35,7 @@ def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,kee
                                     num_samples_per_id))
     ]
     if keep_file_names: img_label_pairs = [(io.imread(fname), label,fname) for fname, label in example_fname_label_pairs]
-    else: [(io.imread(fname), label) for fname, label in example_fname_label_pairs]
+    else: img_label_pairs=[(io.imread(fname), label) for fname, label in example_fname_label_pairs]
     if shuffle:
         random.shuffle(img_label_pairs)  # shuffle in place
     return img_label_pairs

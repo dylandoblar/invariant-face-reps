@@ -2,10 +2,10 @@ import random
 from tqdm import tqdm
 
 from model import TemplateModel
-from utils import gen_balanced_pairs_from_dataset, scores_to_acc, load_dataset
+from utils import gen_balanced_pairs_from_dataset, scores_to_acc, load_dataset, write_csv
 
 
-def evaluate(model, dataset, num_samples=-1):
+def evaluate(model, dataset, num_samples=-1,logging_dir=None):
     '''
     Evaluates the model on pairs of examples in the dataset specified by dataset_path.
     Returns accuracy on sampled pairs of examples in the dataset. Classes are balanced such
@@ -14,6 +14,7 @@ def evaluate(model, dataset, num_samples=-1):
     num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
                         (2) different labels for tuning the threshold. If -1, use as many
                         samples as possible while keeping classes balanced.
+    logging_dir(str): where to save metric + analysis data, if desired
     '''
     print('Evaluating model:')
     pairs = gen_balanced_pairs_from_dataset(dataset, num_samples)
@@ -31,16 +32,22 @@ def evaluate(model, dataset, num_samples=-1):
         if output == label:
             num_correct += 1
         else:
-            wrong_pairs.append(([label1,fname1], [label2, fname2]))
+            wrong_pairs.append((fname1, label1, fname2, label2))
 
     accuracy = num_correct / num_pairs
-    # print(f"[evaluate] num_correct : {num_correct}")
-    # print(f"[evaluate] num_pairs : {num_pairs}")
+    print(f"[evaluate] num_correct : {num_correct}")
+    print(f"[evaluate] num_pairs : {num_pairs}")
     print(f"[evaluate] accuracy : {accuracy}")
-    # print(f"wrong_pairs :")
-    # pprint(wrong_pairs)
-    # print(f'number wrong with same label : {sum([a == b for a, b in wrong_pairs])}')
-    # print(f'number wrong with diff label : {sum([a != b for a, b in wrong_pairs])}')
+    print(f"wrong_pairs :")
+    print(wrong_pairs)
+    num_false_negatives = {sum([a != b for _, a,_, b in wrong_pairs])}
+    num_false_positives = {sum([a == b for _, a,_, b in wrong_pairs])}
+    print(f'number wrong with same label : {num_false_negatives}')
+    print(f'number wrong with diff label : {num_false_positives}')
+
+    if logging_dir is not None:
+        write_csv(wrong_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"wrong_pairs.csv")
+
     return accuracy
 
 
