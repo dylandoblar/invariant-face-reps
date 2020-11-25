@@ -23,15 +23,15 @@ def evaluate(model, dataset, num_samples=-1):
     wrong_pairs = []
 
     for idx1, idx2 in tqdm(pairs):
-        ex1, label1 = dataset[idx1]
-        ex2, label2 = dataset[idx2]
+        ex1, label1, fname1 = dataset[idx1]
+        ex2, label2, fname2 = dataset[idx2]
         output = model.predict(ex1, ex2)
         label = int(label1 == label2)
         num_pairs += 1
         if output == label:
             num_correct += 1
         else:
-            wrong_pairs.append((label1, label2))
+            wrong_pairs.append(([label1,fname1], [label2, fname2]))
 
     accuracy = num_correct / num_pairs
     # print(f"[evaluate] num_correct : {num_correct}")
@@ -47,10 +47,10 @@ def evaluate(model, dataset, num_samples=-1):
 if __name__ == '__main__':
     random.seed(1612)
 
-    data = 'normal'  # 'extreme'  # extreme or normal dataset
+    data = 'extreme'  # 'extreme'  # extreme or normal dataset
     print(f'Experiment type : {data} illumination')
 
-    template_dir = f'/Users/dylan/projects/face-illumination-invariance/data/ill_{data}_debug/img'
+    template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_template/img'
     model = TemplateModel(
         template_dir,
         repr_type='HOG',
@@ -58,13 +58,13 @@ if __name__ == '__main__':
         pca_dim=100,
         standardize=True,
         num_thresh_samples=100,
-        # thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
+        thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
         num_template_ids=10,
         num_template_samples_per_id=30,
     )
 
-    test_dir = f'/Users/dylan/projects/face-illumination-invariance/data/ill_{data}_overfit/img'
+    test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_test/img'
     # dataset = load_dataset(template_dir)  # sanity check: model does well on the template set
-    dataset = load_dataset(test_dir)
+    dataset = load_dataset(test_dir,keep_file_names=True)
     acc = evaluate(model, dataset, num_samples=100)
     print(f"model accuracy on the balanced test set : {acc}")

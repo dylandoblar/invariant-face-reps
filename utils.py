@@ -1,9 +1,10 @@
 import os
 import random
 from skimage import io
+import csv
 
 
-def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False):
+def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,keep_file_names=False):
     '''
     Loads a dataset from a directory with structure:
         dataset_dir
@@ -21,6 +22,7 @@ def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False):
     dataset_dir(str): path to root of dataset
     num_ids(int): number of IDs to subsample (if 0, use all IDs in the dataset)
     num_samples_per_id(int): number of samples to take for each ID (if 0, use all samples for IDs)
+    keep_file_names(bool): if True, return file names s.t. (img, label, filename)
     '''
     labels = os.listdir(dataset_dir)
     if num_ids > 0:
@@ -32,7 +34,8 @@ def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False):
                       random.sample(os.listdir(os.path.join(dataset_dir, label)),
                                     num_samples_per_id))
     ]
-    img_label_pairs = [(io.imread(fname), label) for fname, label in example_fname_label_pairs]
+    if keep_file_names: img_label_pairs = [(io.imread(fname), label,fname) for fname, label in example_fname_label_pairs]
+    else: [(io.imread(fname), label) for fname, label in example_fname_label_pairs]
     if shuffle:
         random.shuffle(img_label_pairs)  # shuffle in place
     return img_label_pairs
@@ -51,9 +54,9 @@ def gen_balanced_pairs_from_dataset(dataset, num_samples=-1):
     pairs_same_id = []
     pairs_diff_id = []
     for idx1 in range(len(dataset)):
-        _, label1 = dataset[idx1]
+        label1 = dataset[idx1][1] # label is always idx 1 in datum tuple
         for idx2 in range(idx1+1, len(dataset)):
-            _, label2 = dataset[idx2]
+            label2 = dataset[idx2][1]
             if label1 == label2:
                 pairs_same_id.append((idx1, idx2))
             else:
@@ -75,3 +78,15 @@ def scores_to_acc(score_label_pairs, thresh):
     '''
     return sum([int(int(score > thresh) == label) for score, label in score_label_pairs]) /\
         len(score_label_pairs)
+
+def write_csv(data, column_labels, file_path):
+    '''
+    Take in list of tuples and associated list of column labels
+    Save as a .csv
+    '''
+    with open(file_path, 'w') as out:
+        csv_out = csv.writer(out)
+        csv_out.writerow(column_labels)
+        csv_out.writerows(data)
+
+
