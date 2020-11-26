@@ -5,7 +5,6 @@ from model import TemplateModel
 from utils import *
 from sklearn.metrics import classification_report,f1_score,matthews_corrcoef,auc
 
-
 def evaluate(model, dataset, num_samples=-1,logging_dir=None):
     '''
     Evaluates the model on pairs of examples in the dataset specified by dataset_path.
@@ -50,12 +49,12 @@ def evaluate(model, dataset, num_samples=-1,logging_dir=None):
     (fp, tn, fn, tp) = get_fp_tn_fn_tp(ytrue, ypred)
     fpr, tpr = get_fpr_tpr(ytrue, ypred)
     metric_map = {"accuracy": accuracy,
-                  "mcc": matthews_corrcoef(ytrue, ypred),
-                 "precision":tp/(tp+fp),
-                "recall": tp / (tp + fn),
-                 "fpr": fpr,
-                "tpr": tpr,
-                "f1_score":f1_score(ytrue, ypred)}
+        "mcc": matthews_corrcoef(ytrue, ypred),
+        "precision":tp/(tp+fp),
+        "recall": tp / (tp + fn),
+        "fpr": fpr,
+        "tpr": tpr,
+        "f1_score":f1_score(ytrue, ypred)}
 
     # print(f"[evaluate] num_correct : {num_correct}")
     # print(f"[evaluate] num_pairs : {num_pairs}")
@@ -70,6 +69,7 @@ def evaluate(model, dataset, num_samples=-1,logging_dir=None):
         write_csv(correct_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"correct_pairs.csv")
         analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir)
         save_data(metric_map, logging_dir+"metrics.json")
+        plot_roc(get_model_scores(model, dataset, pairs),logging_dir+"test_threshold_roc.png")
 
     return accuracy
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     random.seed(1612)
 
     data = 'extreme'  # 'extreme'  # extreme or normal dataset
-    repr_type = 'VGG' # vgg or hog features
+    repr_type = 'HOG' # vgg or hog features
     print(f'Experiment type : {data} illumination')
 
     template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_template/img'
@@ -94,8 +94,8 @@ if __name__ == '__main__':
         num_template_ids=10,
         num_template_samples_per_id=30,
         #vgg_model_path=f"vgg_model_finetune_{data}.h5",
-        vgg_model_path=f"vgg_model_nofinetune.h5",
-        logging_dir=logging_dir+"nofinetune/",
+        vgg_model_path=f"vgg_model_finetune_normal.h5",
+        logging_dir=logging_dir,
     )
 
     test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_test/img'

@@ -6,6 +6,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import json
+from tqdm import tqdm
+import pandas as pd
+from sklearn.manifold import TSNE
 
 def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,keep_file_names=False):
     '''
@@ -166,10 +169,14 @@ def get_fpr_tpr_thresh(score_label_pairs,thresh):
 
     return get_fpr_tpr(ytrue,ypred)
 
-def plot_roc(roc_metrics,thresholds,output_path):
+def plot_roc(score_label_pairs,output_path):
     '''
     Create ROC plot from metrics (takes in pairs of (fpr, tpr))
     '''
+
+    template_scores = list(zip(*score_label_pairs))[0]
+    roc_metrics = [get_fpr_tpr_thresh(score_label_pairs, thresh) for thresh in template_scores]
+
     plt.figure()
     plt.plot([0, 1], [0, 1], 'k--') # plt x = y control line
     plt.plot([fpr for fpr, _ in roc_metrics], [tpr for _, tpr in roc_metrics])
@@ -183,3 +190,43 @@ def save_data(data, filepath):
     Save data as .json file
     '''
     with open(filepath,"w") as f: json.dump(data,f)
+
+def get_model_scores(model,dataset, pairs):
+    '''
+    Gets (score,label) pairs of model evaluated on (ex1,ex2) pairs from dataset
+    Score is cosine similarity (pre-threshold)
+    '''
+    score_label_pairs = []
+    for idx1, idx2 in tqdm(pairs):
+        ex1,label1,fname1 = dataset[idx1]
+        ex2,label2,fname2 = dataset[idx2]
+        score = model.score(ex1, ex2)
+        label = int(label1 == label2)
+        score_label_pairs.append((score, label))
+    score_label_pairs.sort(key=lambda x: x[0])
+    return score_label_pairs
+
+def compute_tsne(X, filepath):
+
+    '''
+    Compute and plot TSNE over data matrix X
+    '''
+
+    # compute embeddings
+    embeddings = TSNE(n_components=2).fit_transform(X)
+
+    #inspired by: https://towardsdatascience.com/visualising-high-dimensional-datasets-using-pca-and-t-sne-in-python-8ef87e7915b
+    emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1]})
+    plt.figure(figsize=(16, 10))
+    sns.scatterplot(
+        x="emb1", y="emb2",
+        #hue="y",
+        palette=sns.color_palette("hls", 10),
+        data=emb_df,
+        #legend="full",
+        alpha=0.3
+    )
+
+    plt.savefig(filepath, dpi=300)
+
+    return embeddings

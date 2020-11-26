@@ -200,12 +200,10 @@ class TemplateModel:
         template_scores = list(zip(*score_label_pairs))[0]
         # this is not as efficient as it could be, but it's plenty fast
         accuracies = [scores_to_acc(score_label_pairs, thresh) for thresh in template_scores]
-        roc_metrics = [get_fpr_tpr_thresh(score_label_pairs, thresh) for thresh in template_scores]
-
         if logging_dir is not None:
             if not os.path.exists(logging_dir): os.makedirs(logging_dir)
             write_csv(score_label_pairs, ["score","label"],logging_dir+"threshold_data.csv")
-            plot_roc(roc_metrics,template_scores,logging_dir+"threshold_roc.png")
+            plot_roc(score_label_pairs,logging_dir+"threshold_roc.png")
 
         best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
         # take the average of the scores on the inflection point as the threshold
