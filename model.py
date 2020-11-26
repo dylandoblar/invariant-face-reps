@@ -10,7 +10,7 @@ from tqdm import tqdm
 from pprint import pprint
 from tensorflow.keras.models import load_model, Sequential
 
-from utils import gen_balanced_pairs_from_dataset, scores_to_acc, load_dataset, write_csv
+from utils import *
 
 
 class TemplateModel:
@@ -26,6 +26,7 @@ class TemplateModel:
         num_template_samples_per_id=0,
         vgg_model_path=None,
         threshold_data_path=None,
+        logging_dir=None,
     ):
         '''
         Implementation of the model described in Figure 5 of "Learning invariant representations
@@ -47,7 +48,7 @@ class TemplateModel:
         num_template_ids(int): number of IDs from template dataset to use (if 0, use all)
         num_template_samples_per_id(int): number of samples per template ID to use (if 0, use all)
         vgg_model_path(str): if using VGG model, provide path to the model .h5 file
-        threshold_data_path(str): path to save threshold (score,label) data as .csv
+        logging_dir(str): where to save data, if desired
         '''
         self.pca = None if pca_dim == -1 else decomposition.PCA(n_components=pca_dim)
         self.standardize = standardize
@@ -85,14 +86,14 @@ class TemplateModel:
         print('Template projection operator computed')
 
         # tune the threshold on the template images
-        self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples,threshold_data_path)
+        self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples,logging_dir)
 
     def compute_hog_feats(self, img):
         return hog(img, block_norm='L2-Hys', transform_sqrt=True)
 
     def compute_vgg_feats(self, img):
         if self.vgg_model_path is None or not os.path.exists(self.vgg_model_path):
-            raise FileExistsError("Please pass valid model (.hd5) file.")
+            raise FileExistsError("Please pass valid model (.h5) file.")
         img = np.expand_dims(img, axis=0)
         model = load_model(self.vgg_model_path)
         new_model = Sequential()
@@ -157,7 +158,7 @@ class TemplateModel:
         score = self.score(ex1, ex2)
         return int(score > self.threshold)
 
-    def tune_threshold(self, num_samples=-1, save_label_pairs_path=None):
+    def tune_threshold(self, num_samples=-1,logging_dir=None):
         '''
         Tune threshold using the template examples.
 
@@ -171,8 +172,7 @@ class TemplateModel:
         num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
                           (2) different labels for tuning the threshold. If -1, use as many
                           samples as possible while keeping classes balanced.
-        save_label_pairs_path(str): path to save the sorted scored label pairs (score,label). If None,
-                          do not save any data
+        logging_dir(str): where to save threshold data and/or plots
 
         Returns: tuned threshold(float)
         '''
@@ -188,12 +188,17 @@ class TemplateModel:
             score_label_pairs.append((score, label))
         score_label_pairs.sort(key=lambda x: x[0])
 
-        if save_label_pairs_path is not None: write_csv(score_label_pairs, ["score","label",save_label_pairs_path])
-
         # choose the thresh that minimizes the number of misclassified pairs
         template_scores = list(zip(*score_label_pairs))[0]
         # this is not as efficient as it could be, but it's plenty fast
         accuracies = [scores_to_acc(score_label_pairs, thresh) for thresh in template_scores]
+        roc_metrics = [get_fpr_tpr_thresh(score_label_pairs, thresh) for thresh in template_scores]
+
+        if logging_dir is not None:
+            if not os.path.exists(logging_dir): os.makedirs(logging_dir)
+            write_csv(score_label_pairs, ["score","label"],logging_dir+"threshold_data.csv")
+            plot_roc(roc_metrics,template_scores,logging_dir+"threshold_roc.png")
+
         best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
         # take the average of the scores on the inflection point as the threshold
         thresh = (template_scores[best_idx] + template_scores[best_idx+1]) / 2
@@ -201,5 +206,6 @@ class TemplateModel:
 
         template_acc = scores_to_acc(score_label_pairs, thresh)
         print(f"Accuracy on the templates with tuned threshold : {template_acc}")
+
 
         return thresh

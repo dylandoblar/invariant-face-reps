@@ -2,7 +2,10 @@ import os
 import random
 from skimage import io
 import csv
-
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import json
 
 def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,keep_file_names=False):
     '''
@@ -24,7 +27,7 @@ def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,kee
     num_samples_per_id(int): number of samples to take for each ID (if 0, use all samples for IDs)
     keep_file_names(bool): if True, return file names s.t. (img, label, filename)
     '''
-    labels = os.listdir(dataset_dir)
+    labels = [label for label in os.listdir(dataset_dir) if label != ".DS_Store"]
     if num_ids > 0:
         labels = random.sample(labels, num_ids)
     example_fname_label_pairs = [
@@ -89,4 +92,94 @@ def write_csv(data, column_labels, file_path):
         csv_out.writerow(column_labels)
         csv_out.writerows(data)
 
+def get_illum_setting(filename):
+    '''
+    Takes in a file name (.png) and returns the illumination setting as int
+    '''
+    img_name = filename.split("/")[-1]
+    illum_setting = img_name.split("_")[1].split(".")[0]
+    return int(illum_setting)
 
+def analyze_errors(wrong_preds, correct_preds,sampled_identies,file_path,num_settings=50):
+    '''
+    format of preds = (filename1, predlabel1, filename2, predlabel2)
+    takes in number of illumination settings (optional)
+    '''
+    poss_ids = sorted(list(sampled_identies))
+    num_ids = len(poss_ids)
+    id_map = {id: idx for idx, id in enumerate(poss_ids)}
+
+    identity_errors = np.zeros([num_ids, num_ids])
+    illum_cond_errors = np.zeros([num_settings,num_settings])
+
+    for f1, l1, f2, l2 in wrong_preds:
+        identity_errors[id_map[l1], id_map[l2]] += 1
+        illum_cond_errors[get_illum_setting(f1), get_illum_setting(f2)]+=1
+
+    plt.figure()
+    sns.heatmap(identity_errors)#, xticklabels=poss_ids, yticklabels=poss_ids)
+    plt.savefig(file_path+"wrong_ids.png")
+
+    plt.figure()
+    sns.heatmap(illum_cond_errors)
+    plt.savefig(file_path + "wrong_illum_cond.png")
+
+
+def get_fp_tn_fn_tp(ytrue,ypred):
+    '''
+    Compute various classification metrics
+    Take as input lists of binary (0,1) labels of equal length
+    0 = diff id, 1 = same id (positive = same id = 1)
+    Return as tuple: (fp, tn, fn, tp)
+    '''
+    fp = np.sum([1 for pred,gt in zip(ypred,ytrue) if pred==1 and gt==0])
+    tn = np.sum([1 for pred, gt in zip(ypred, ytrue) if pred == 0 and gt == 0])
+    fn = np.sum([1 for pred, gt in zip(ypred, ytrue) if pred == 0 and gt == 1])
+    tp = np.sum([1 for pred, gt in zip(ypred, ytrue) if pred == 1 and gt == 1])
+    return (fp, tn, fn, tp)
+
+def get_fpr_tpr(ytrue,ypred):
+    '''
+    Compute FPR and TPR
+    Take as input lists of binary (0,1) labels of equal length
+    0 = diff id, 1 = same id (positive = same id = 1)
+    Return as tuple: (fpr, tpr)
+    '''
+    (fp, tn, fn, tp) = get_fp_tn_fn_tp(ytrue, ypred)
+
+    fpr = fp/(fp + tn)
+    tpr = tp/(tp + fn)
+
+    return (fpr, tpr)
+
+def get_fpr_tpr_thresh(score_label_pairs,thresh):
+    '''
+    Compute FPR and TPR
+    Take as input pairs of (score, label) where score is a cosine similarity and label is 0 or 1 ground
+    truth
+    Extract pred list as if score > thresh = 1
+    Return as tuple: (fpr, tpr)
+    '''
+
+    ypred = [int(score > thresh) for score, _ in score_label_pairs]
+    ytrue = [label for _,label in score_label_pairs]
+
+    return get_fpr_tpr(ytrue,ypred)
+
+def plot_roc(roc_metrics,thresholds,output_path):
+    '''
+    Create ROC plot from metrics (takes in pairs of (fpr, tpr))
+    '''
+    plt.figure()
+    plt.plot([0, 1], [0, 1], 'k--') # plt x = y control line
+    plt.plot([fpr for fpr, _ in roc_metrics], [tpr for _, tpr in roc_metrics])
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    plt.title('ROC curve')
+    plt.savefig(output_path)
+
+def save_data(data, filepath):
+    '''
+    Save data as .json file
+    '''
+    with open(filepath,"w") as f: json.dump(data,f)
