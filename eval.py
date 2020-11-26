@@ -62,11 +62,13 @@ def evaluate(model, dataset, num_samples=-1,logging_dir=None):
     print(f"[evaluate] accuracy : {accuracy}")
     print(f'number wrong with same label : {fn}')
     print(f'number wrong with diff label : {fp}')
+    print(classification_report(ytrue,ypred))
 
     if logging_dir is not None:
+        if not os.path.exists(logging_dir): os.makedirs(logging_dir)
         write_csv(wrong_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"wrong_pairs.csv")
         write_csv(correct_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"correct_pairs.csv")
-        analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir+"extreme_")
+        analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir)
         save_data(metric_map, logging_dir+"metrics.json")
 
     return accuracy
@@ -76,13 +78,14 @@ if __name__ == '__main__':
     random.seed(1612)
 
     data = 'extreme'  # 'extreme'  # extreme or normal dataset
+    repr_type = 'VGG' # vgg or hog features
     print(f'Experiment type : {data} illumination')
 
     template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_template/img'
-    logging_dir = "./logging_dir/"+data+"/"
+    logging_dir = f'./logging_dir/{repr_type}_{data}/'
     model = TemplateModel(
         template_dir,
-        repr_type='HOG',#'HOG',
+        repr_type=repr_type,
         # repr_type='RANDOM',  # sanity check that with large sample sizes accuracy is nearly 0.5
         pca_dim=100,
         standardize=True,
@@ -90,8 +93,9 @@ if __name__ == '__main__':
         #thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
         num_template_ids=10,
         num_template_samples_per_id=30,
-        vgg_model_path="vgg_model_finetune_extreme.h5",#"vgg_model_nofinetune.h5"
-        logging_dir=logging_dir,
+        #vgg_model_path=f"vgg_model_finetune_{data}.h5",
+        vgg_model_path=f"vgg_model_nofinetune.h5",
+        logging_dir=logging_dir+"nofinetune/",
     )
 
     test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_test/img'
