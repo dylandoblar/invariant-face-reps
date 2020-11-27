@@ -90,7 +90,7 @@ if __name__ == '__main__':
         pca_dim=100,
         standardize=True,
         num_thresh_samples=100,
-        #thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
+        thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
         num_template_ids=10,
         num_template_samples_per_id=30,
         #vgg_model_path=f"vgg_model_finetune_{data}.h5",
@@ -101,5 +101,10 @@ if __name__ == '__main__':
     test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_test/img'
     # dataset = load_dataset(template_dir)  # sanity check: model does well on the template set
     dataset = load_dataset(test_dir,keep_file_names=True)
-    acc = evaluate(model, dataset, num_samples=100,logging_dir=logging_dir)
-    print(f"model accuracy on the balanced test set : {acc}")
+    #acc = evaluate(model, dataset, num_samples=100,logging_dir=logging_dir)
+    #print(f"model accuracy on the balanced test set : {acc}")
+
+    num_ids = 5
+    data_subset = load_dataset(test_dir, num_ids=num_ids, num_samples_per_id=5, shuffle=True,keep_file_names=True)
+    emb_data = compute_tsne(model, dataset, logging_dir + "tnse.png", num_classes=num_ids)
+

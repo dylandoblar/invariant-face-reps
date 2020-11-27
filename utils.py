@@ -103,6 +103,7 @@ def get_illum_setting(filename):
     illum_setting = img_name.split("_")[1].split(".")[0]
     return int(illum_setting)
 
+
 def analyze_errors(wrong_preds, correct_preds,sampled_identies,file_path,num_settings=50):
     '''
     format of preds = (filename1, predlabel1, filename2, predlabel2)
@@ -206,24 +207,34 @@ def get_model_scores(model,dataset, pairs):
     score_label_pairs.sort(key=lambda x: x[0])
     return score_label_pairs
 
-def compute_tsne(X, filepath):
+def compute_tsne(model, dataset, filepath, num_classes=10):
 
     '''
-    Compute and plot TSNE over data matrix X
+    Project dataset using HOG/VGG features
+    Compute and plot TSNE
     '''
+
+    X = []
+    ids = []
+    for (img, label, fname) in dataset:
+        X.append(model.compute_feats(img))
+        ids.append(label)
+    X = np.array(X)
 
     # compute embeddings
-    embeddings = TSNE(n_components=2).fit_transform(X)
+    print("starting tsne.....")
+    embeddings = TSNE(n_components=2, n_jobs=-1).fit_transform(X)
+    print("done with tsne")
 
     #inspired by: https://towardsdatascience.com/visualising-high-dimensional-datasets-using-pca-and-t-sne-in-python-8ef87e7915b
-    emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1]})
+    emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1], "id":ids})
     plt.figure(figsize=(16, 10))
     sns.scatterplot(
         x="emb1", y="emb2",
-        #hue="y",
-        palette=sns.color_palette("hls", 10),
+        hue="id",
+        palette=sns.color_palette("hls", num_classes),
         data=emb_df,
-        #legend="full",
+        legend="full",
         alpha=0.3
     )
 

@@ -28,7 +28,6 @@ class TemplateModel:
         num_template_ids=0,
         num_template_samples_per_id=0,
         vgg_model_path=None,
-        threshold_data_path=None,
         logging_dir=None,
     ):
         '''
@@ -64,7 +63,6 @@ class TemplateModel:
             if vgg_model_path is None or not os.path.exists(vgg_model_path):
                 raise FileExistsError("Please pass valid model (.h5) file.")
             self.vgg_model_path = vgg_model_path
-            # model = create_vggface_model(self.vgg_model_path, 800)
             model = load_model(self.vgg_model_path)
             new_model = Sequential()
             for layer in model.layers[:-1]:  # just exclude last layer from copying
@@ -215,69 +213,3 @@ class TemplateModel:
 
 
         return thresh
-
-def create_vggface_model(model_weights, num_identities=100):
-    # help from: https://sefiks.com/2018/08/06/deep-face-recognition-with-keras/
-
-    # same architecture as VGGFace
-    vggface_model = Sequential()
-    vggface_model.add(ZeroPadding2D((1, 1), input_shape=(224, 224, 3)))
-    vggface_model.add(Convolution2D(64, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(64, (3, 3), activation='relu'))
-    vggface_model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(128, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(128, (3, 3), activation='relu'))
-    vggface_model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(256, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(256, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(256, (3, 3), activation='relu'))
-    vggface_model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(ZeroPadding2D((1, 1)))
-    vggface_model.add(Convolution2D(512, (3, 3), activation='relu'))
-    vggface_model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    vggface_model.add(Convolution2D(4096, (7, 7), activation='relu'))
-    vggface_model.add(Dropout(0.5))
-    vggface_model.add(Convolution2D(4096, (1, 1), activation='relu'))
-    vggface_model.add(Dropout(0.5))
-    vggface_model.add(Convolution2D(2622, (1, 1)))
-    # vggface_model.add(Convolution2D(2622, (1, 1)))
-    vggface_model.add(Flatten(name="activations"))
-    vggface_model.add(Activation('softmax'))
-
-    model = Sequential()
-    for layer in vggface_model.layers[:-1]:model.add(layer)
-    # freeze the weights to allow only pretraining on final layer and prior layer from original model
-    for layer in model.layers[:-3]:layer.trainable = False
-    model.add(Dense(num_identities, activation='softmax', name='predictions'))
-
-    # compile final model
-    # retrain (but just the last layer since all else frozen)
-    model.compile(optimizer='adam',
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
-
-    model.load_weights(model_weights)
-
-    return model
