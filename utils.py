@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import json
 from tqdm import tqdm
 import pandas as pd
-from sklearn.manifold import TSNE
+from MulticoreTSNE import MulticoreTSNE as TSNE
+from sklearn.metrics import auc
 
 def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,keep_file_names=False):
     '''
@@ -173,6 +174,7 @@ def get_fpr_tpr_thresh(score_label_pairs,thresh):
 def plot_roc(score_label_pairs,output_path):
     '''
     Create ROC plot from metrics (takes in pairs of (fpr, tpr))
+    Returns AUC (float)
     '''
 
     template_scores = list(zip(*score_label_pairs))[0]
@@ -180,11 +182,46 @@ def plot_roc(score_label_pairs,output_path):
 
     plt.figure()
     plt.plot([0, 1], [0, 1], 'k--') # plt x = y control line
-    plt.plot([fpr for fpr, _ in roc_metrics], [tpr for _, tpr in roc_metrics])
+    fprs = [fpr for fpr, _ in roc_metrics]
+    tprs = [tpr for _, tpr in roc_metrics]
+    auc_score = auc(fprs, tprs)
+    plt.plot(fprs, tprs)
     plt.xlabel('False positive rate')
     plt.ylabel('True positive rate')
-    plt.title('ROC curve')
+    plt.title(f'ROC curve, AUC: {round(auc_score,3)}')
     plt.savefig(output_path)
+    return {"auc_score": auc_score, "fprs": fprs, "tprs": tprs}
+
+def plot_many_rocs(all_fprs,all_tprs,labels,styles, output_path,title="ROC curve"):
+    '''
+    Create k overlayed ROC plots
+    Takes as input k-dimensional lists of fprs + tprs, and labels
+    Styles are matplotlib color + point type (i.e., g*)
+    Save to output_path
+    '''
+
+    plt.figure()
+    plt.plot([0, 1], [0, 1], 'k--') # plt x = y control line
+
+    for label, fprs, tprs, style in zip(labels, all_fprs,all_tprs,styles):
+        auc_score = auc(fprs, tprs)
+        plt.plot(fprs, tprs, label=f'{label}, AUC: {round(auc_score,3)}')
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    plt.title(title)
+    plt.legend(loc="lower right")
+    plt.savefig(output_path)
+
+def create_overlayed_rocs(title, labels, styles, dirs, output_path):
+    all_fprs = []
+    all_tprs = []
+    for logging_dir in dirs:
+        # read in fprs and tprs
+        with open(logging_dir + "roc_data.json") as f:
+            roc_data = json.load(f)
+            all_fprs.append(roc_data["fprs"])
+            all_tprs.append(roc_data["tprs"])
+    plot_many_rocs(all_fprs, all_tprs, labels, styles, output_path, title)
 
 def save_data(data, filepath):
     '''
@@ -220,14 +257,17 @@ def compute_tsne(model, dataset, filepath, num_classes=10):
         X.append(model.compute_feats(img))
         ids.append(label)
     X = np.array(X)
+    print("data matrix: ", np.shape(X))
 
     # compute embeddings
     print("starting tsne.....")
-    embeddings = TSNE(n_components=2, n_jobs=-1).fit_transform(X)
+    embeddings = TSNE(n_jobs=4).fit_transform(X)
     print("done with tsne")
 
     #inspired by: https://towardsdatascience.com/visualising-high-dimensional-datasets-using-pca-and-t-sne-in-python-8ef87e7915b
     emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1], "id":ids})
+    print("emb df: ", emb_df.head(5))
+    print("num ids: ", len(set(ids)))
     plt.figure(figsize=(16, 10))
     sns.scatterplot(
         x="emb1", y="emb2",
@@ -235,7 +275,7 @@ def compute_tsne(model, dataset, filepath, num_classes=10):
         palette=sns.color_palette("hls", num_classes),
         data=emb_df,
         legend="full",
-        alpha=0.3
+        alpha=0.7
     )
 
     plt.savefig(filepath, dpi=300)

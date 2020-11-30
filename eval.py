@@ -68,43 +68,116 @@ def evaluate(model, dataset, num_samples=-1,logging_dir=None):
         write_csv(wrong_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"wrong_pairs.csv")
         write_csv(correct_pairs, ["fname1", "label1", "fname2", "label2"],logging_dir+"correct_pairs.csv")
         analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir)
+        roc_data = plot_roc(get_model_scores(model, dataset, pairs),logging_dir+"test_threshold_roc.png")
+        save_data(roc_data, logging_dir + "roc_data.json")
+        metric_map["auc"] = roc_data["auc_score"]
         save_data(metric_map, logging_dir+"metrics.json")
-        plot_roc(get_model_scores(model, dataset, pairs),logging_dir+"test_threshold_roc.png")
+
 
     return accuracy
+
+def run_experiment(repr_type, template_data, test_data, vgg_model_type=None):
+
+    # manage data + logging directories
+    template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{template_data}_mvn_template/img'
+    # if vgg_model_type is not None:logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}_{vgg_model_type}/'
+    # else: logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}/'
+    logging_dir = f'./logging_dir/{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
+
+    if not os.path.exists(logging_dir): os.makedirs(logging_dir)
+
+    # create model
+    model = TemplateModel(
+        template_dir,
+        repr_type=repr_type,
+        pca_dim=50,
+        standardize=True,
+        num_thresh_samples=500,
+        num_template_ids=50,
+        num_template_samples_per_id=15,
+        vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+        logging_dir=logging_dir,
+    )
+    # model = TemplateModel(
+    #     template_dir,
+    #     repr_type=repr_type,
+    #     pca_dim=25,
+    #     standardize=True,
+    #     num_thresh_samples=50,
+    #     num_template_ids=5,
+    #     num_template_samples_per_id=5,
+    #     vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+    #     logging_dir=logging_dir,
+    # )
+
+    test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{test_data}_mvn_test/img'
+    # dataset = load_dataset(template_dir)  # sanity check: model does well on the template set
+    dataset = load_dataset(test_dir,keep_file_names=True)
+    acc = evaluate(model, dataset, num_samples=100,logging_dir=logging_dir)
+    print(f"model accuracy on the balanced test set : {acc}")
+
+    # num_ids = 10
+    # data_subset = load_dataset(test_dir, num_ids=num_ids, num_samples_per_id=0, shuffle=True,keep_file_names=True)
+    # emb_data = compute_tsne(model, data_subset, logging_dir + "tnse.png", num_classes=num_ids)
+
+    return logging_dir
 
 
 if __name__ == '__main__':
     random.seed(1612)
 
-    data = 'extreme'  # 'extreme'  # extreme or normal dataset
-    repr_type = 'HOG' # vgg or hog features
-    print(f'Experiment type : {data} illumination')
+    final_output_dir = "./final_plots/"
+    if not os.path.exists(final_output_dir): os.makedirs(final_output_dir)
 
-    template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_template/img'
-    logging_dir = f'./logging_dir/{repr_type}_{data}/'
-    model = TemplateModel(
-        template_dir,
-        repr_type=repr_type,
-        # repr_type='RANDOM',  # sanity check that with large sample sizes accuracy is nearly 0.5
-        pca_dim=100,
-        standardize=True,
-        num_thresh_samples=100,
-        thresh=0.9999560161509551,  # pass in a threshold if you don't want to tune
-        num_template_ids=10,
-        num_template_samples_per_id=30,
-        #vgg_model_path=f"vgg_model_finetune_{data}.h5",
-        vgg_model_path=f"vgg_model_finetune_normal.h5",
-        logging_dir=logging_dir,
-    )
+    repr_types = ["HOG", "VGG"]
+    vgg_model_types = ["normal", "extreme", "pretrain"]
 
-    test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{data}_test/img'
-    # dataset = load_dataset(template_dir)  # sanity check: model does well on the template set
-    dataset = load_dataset(test_dir,keep_file_names=True)
-    #acc = evaluate(model, dataset, num_samples=100,logging_dir=logging_dir)
-    #print(f"model accuracy on the balanced test set : {acc}")
+    # 1) compare HOG vs. VGG on normal illumination test set
+    template_data = "normal"
+    test_data = "normal"
+    vgg_model_type = "normal"
 
-    num_ids = 5
-    data_subset = load_dataset(test_dir, num_ids=num_ids, num_samples_per_id=5, shuffle=True,keep_file_names=True)
-    emb_data = compute_tsne(model, dataset, logging_dir + "tnse.png", num_classes=num_ids)
+    logging_dirs = []
+    for repr_type in repr_types:
+        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+        logging_dirs.append(logging_dir)
 
+    title = "ROC Plot: Test on Normal Illumination"
+    labels = ["HOG", "VGG"]
+    file_tag = "normal_illum_test.png"
+    styles = ['b-*', 'r-o']
+    create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+
+    # 2) compare VGG training procedure for extreme illumination test set (extreme input)
+
+    repr_type = "VGG"
+    template_data = "extreme"
+    test_data = "extreme"
+
+    logging_dirs = []
+    for vgg_model_type in vgg_model_types:
+        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+        logging_dirs.append(logging_dir)
+
+    title = "ROC Plot: Vary VGGFace Training Data"
+    labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
+    file_tag = "vgg_model_test_extreme.png"
+    styles = ['b-*', 'r-o', 'g--']
+    create_overlayed_rocs(title, labels, logging_dirs, final_output_dir + file_tag)
+
+    # 3) compare VGG training procedure for extreme illumination test set (normal input)
+
+    repr_type = "VGG"
+    template_data = "normal"
+    test_data = "extreme"
+
+    logging_dirs = []
+    for vgg_model_type in vgg_model_types:
+        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+        logging_dirs.append(logging_dir)
+
+    title = "ROC Plot: Vary VGGFace Training Data"
+    labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
+    file_tag = "vgg_model_test_extreme_normal_template.png"
+    styles = ['b-*', 'r-o', 'g--']
+    create_overlayed_rocs(title, labels, logging_dirs, final_output_dir + file_tag)
