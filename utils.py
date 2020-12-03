@@ -223,6 +223,38 @@ def create_overlayed_rocs(title, labels, styles, dirs, output_path):
             all_tprs.append(roc_data["tprs"])
     plot_many_rocs(all_fprs, all_tprs, labels, styles, output_path, title)
 
+def get_sample_complexity_params(logging_dir):
+    # get sample complexity parameters (num ids, num per id) from directory name
+    decomp_dir = logging_dir[:-1].split("_")
+    return int(decomp_dir[-2]), int(decomp_dir[-1]) # final clauses = num_id + num_per_id
+
+def complexity_heatmap(dirs, all_num_ids, all_samp_per_id, title, output_path, metric="auc"):
+
+    all_performance_metrics = []
+
+    # create map of parameter setting to auc of the logging directory
+    param_dir_map = {}
+
+    for logging_dir in dirs: # format has _numIDs_numPerID/
+        num_ids, num_samp_per_id = get_sample_complexity_params(logging_dir)
+        # read in fprs and tprs
+        with open(logging_dir + "metrics.json") as f:
+            metrics_map = json.load(f)
+            param_dir_map[(num_ids, num_samp_per_id)] = metrics_map
+
+    for num_ids in all_num_ids:
+        performance_metrics = []
+        for num_samp_per_id in all_samp_per_id:
+            performance_metrics.append(param_dir_map[(num_ids, num_samp_per_id)][metric])
+        all_performance_metrics.append(performance_metrics)
+
+    plt.figure()
+    sns.heatmap(all_performance_metrics, xticklabels=map(str, all_num_ids), yticklabels=map(str, all_samp_per_id))
+    plt.title(title)
+    plt.xlabel("Num IDs")
+    plt.ylabel("Num Samples per ID")
+    plt.savefig(output_path)
+
 def save_data(data, filepath):
     '''
     Save data as .json file
@@ -244,17 +276,20 @@ def get_model_scores(model,dataset, pairs):
     score_label_pairs.sort(key=lambda x: x[0])
     return score_label_pairs
 
-def compute_tsne(model, dataset, filepath, num_classes=10):
+def compute_tsne(model, dataset, output_dir, use_raw_features = True, num_classes=10):
 
     '''
     Project dataset using HOG/VGG features
     Compute and plot TSNE
+    Raw features = direct HOG features or VGG activations
     '''
 
     X = []
     ids = []
     for (img, label, fname) in dataset:
-        X.append(model.compute_feats(img))
+        if use_raw_features: features = model.compute_feats(img)
+        else: features = model.compute_projector([img])
+        X.append(features)
         ids.append(label)
     X = np.array(X)
     print("data matrix: ", np.shape(X))
@@ -278,6 +313,8 @@ def compute_tsne(model, dataset, filepath, num_classes=10):
         alpha=0.7
     )
 
-    plt.savefig(filepath, dpi=300)
+    plt.savefig(output_dir + "tsne.png", dpi=300)
+
+    emb_df.to_csv(output_dir + "tsne_data.csv")
 
     return embeddings

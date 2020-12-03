@@ -76,25 +76,31 @@ def evaluate(model, dataset, num_samples=-1,logging_dir=None):
 
     return accuracy
 
-def run_experiment(repr_type, template_data, test_data, vgg_model_type=None):
+def run_experiment(repr_type, template_data, test_data, vgg_model_type=None, num_ids=50, num_per_id=15, num_pca_dim=50,sample_complexity_exp=False):
+    random.seed(1612)
 
     # manage data + logging directories
     template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{template_data}_mvn_template/img'
     # if vgg_model_type is not None:logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}_{vgg_model_type}/'
     # else: logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}/'
-    logging_dir = f'./logging_dir/{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
 
-    if not os.path.exists(logging_dir): os.makedirs(logging_dir)
+    # change data saving if running sample complexity exp
+    if sample_complexity_exp:
+        logging_dir = f'./logging_dir/sample_complexity/{repr_type}_{template_data}_{test_data}_{vgg_model_type}_{num_ids}_{num_per_id}/'
+    else: logging_dir = f'./logging_dir/{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
+
+    if not os.path.exists(logging_dir):os.makedirs(logging_dir)
+    else: return logging_dir  # don't re-run experiment if directory exists (change if need to rerun)
 
     # create model
     model = TemplateModel(
         template_dir,
         repr_type=repr_type,
-        pca_dim=50,
+        pca_dim=num_pca_dim,
         standardize=True,
         num_thresh_samples=500,
-        num_template_ids=50,
-        num_template_samples_per_id=15,
+        num_template_ids=num_ids,
+        num_template_samples_per_id=num_per_id,
         vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
         logging_dir=logging_dir,
     )
@@ -122,62 +128,203 @@ def run_experiment(repr_type, template_data, test_data, vgg_model_type=None):
 
     return logging_dir
 
-
 if __name__ == '__main__':
-    random.seed(1612)
+    #random.seed(1612)
 
     final_output_dir = "./final_plots/"
     if not os.path.exists(final_output_dir): os.makedirs(final_output_dir)
 
     repr_types = ["HOG", "VGG"]
-    vgg_model_types = ["normal", "extreme", "pretrain"]
+    vgg_model_types = ["extreme", "normal", "pretrain"]
+    poss_templates = ["normal", "extreme"]
+    poss_tests = ["normal", "extreme"]
 
-    # 1) compare HOG vs. VGG on normal illumination test set
     template_data = "normal"
-    test_data = "normal"
-    vgg_model_type = "normal"
+    test_data = "extreme"
+    vgg_model_type = "extreme"
 
-    logging_dirs = []
+    # run sample complexity exp (num_ids, num_per_id)
+    # settings = [(15,50), (30,25), (25,30), (50,15), (150,5),(250,3)]
+    # for repr_type in repr_types:
+    #     labels = []
+    #     logging_dirs = []
+    #     for num_ids, num_per_id in settings:
+    #         print("running: ", num_ids, num_per_id)
+    #         logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_per_id, True)
+    #         logging_dirs.append(logging_dir)
+    #         labels.append(f'Num IDs: {num_ids}, Num Per ID: {num_per_id}')
+    #     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*']
+    #     file_tag = f'sample_complexity_{repr_type}_{template_data}_{test_data}.png'
+    #     title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs'
+    #     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+
+    all_num_ids = [5, 10, 25, 50, 100, 500]
+    all_samp_per_id = [5,10,15,25,50]
+    num_pca_dim = 25
     for repr_type in repr_types:
-        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
-        logging_dirs.append(logging_dir)
+        logging_dirs = []
+        for num_ids in all_num_ids:
+            for num_samp_per_id in all_samp_per_id:
+                print("running: ", num_ids, num_samp_per_id)
+                logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_samp_per_id, num_pca_dim,
+                                             True)
+                logging_dirs.append(logging_dir)
+        file_tag = f'sample_complexity_heatmap_{repr_type}_{template_data}_{test_data}.png'
+        title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs'
+        complexity_heatmap(logging_dirs, all_num_ids, all_samp_per_id, title, file_tag)
 
-    title = "ROC Plot: Test on Normal Illumination"
-    labels = ["HOG", "VGG"]
-    file_tag = "normal_illum_test.png"
-    styles = ['b-*', 'r-o']
-    create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
 
-    # 2) compare VGG training procedure for extreme illumination test set (extreme input)
 
-    repr_type = "VGG"
-    template_data = "extreme"
-    test_data = "extreme"
+    # logging_dirs = []
+    # logging_dirs.append(run_experiment("HOG", template_data, test_data, "normal")) # vgg model type doesn't matter for hog (ignore)
+    # repr_type = "VGG"
+    # for vgg_model_type in vgg_model_types:
+    #     logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+    #     logging_dirs.append(logging_dir)
+    #
+    # labels = ["HOG Features", "VGG, Fine-Tuned (Extreme)", "VGG, Fine-Tuned (Normal)", "VGG, Pretrain Only"]
+    # styles = ['b-*', 'r-o', 'g--', 'p-*']
+    # file_tag = "compare_normal_extreme_all.png"
+    # title = "ROC Plot: Normal Templates, Extreme Test Set"
+    # create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
 
-    logging_dirs = []
-    for vgg_model_type in vgg_model_types:
-        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
-        logging_dirs.append(logging_dir)
-
-    title = "ROC Plot: Vary VGGFace Training Data"
-    labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
-    file_tag = "vgg_model_test_extreme.png"
-    styles = ['b-*', 'r-o', 'g--']
-    create_overlayed_rocs(title, labels, logging_dirs, final_output_dir + file_tag)
-
-    # 3) compare VGG training procedure for extreme illumination test set (normal input)
-
-    repr_type = "VGG"
-    template_data = "normal"
-    test_data = "extreme"
-
-    logging_dirs = []
-    for vgg_model_type in vgg_model_types:
-        logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
-        logging_dirs.append(logging_dir)
-
-    title = "ROC Plot: Vary VGGFace Training Data"
-    labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
-    file_tag = "vgg_model_test_extreme_normal_template.png"
-    styles = ['b-*', 'r-o', 'g--']
-    create_overlayed_rocs(title, labels, logging_dirs, final_output_dir + file_tag)
+#
+# if __name__ == '__main__':
+#     random.seed(1612)
+#
+#     final_output_dir = "./final_plots/"
+#     if not os.path.exists(final_output_dir): os.makedirs(final_output_dir)
+#
+#     repr_types = ["HOG", "VGG"]
+#     vgg_model_types = ["normal", "extreme", "pretrain"]
+#     poss_templates = ["normal", "extreme"]
+#     poss_tests = ["normal", "extreme"]
+#
+#     # # 1) compare HOG vs. VGG on normal illumination test set
+#     # template_data = "normal"
+#     # test_data = "normal"
+#     # vgg_model_type = "normal"
+#     #
+#     # logging_dirs = []
+#     # for repr_type in repr_types:
+#     #     logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#     #     logging_dirs.append(logging_dir)
+#     #
+#     # title = "ROC Plot: Test on Normal Illumination"
+#     # labels = ["HOG", "VGG"]
+#     # file_tag = "normal_illum_test.png"
+#     # styles = ['b-*', 'r-o']
+#     # create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#     #
+#     # # 2) compare VGG training procedure for extreme illumination test set (extreme input)
+#     #
+#     # repr_type = "VGG"
+#     # template_data = "extreme"
+#     # test_data = "extreme"
+#     #
+#     # logging_dirs = []
+#     # for vgg_model_type in vgg_model_types:
+#     #     logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#     #     logging_dirs.append(logging_dir)
+#     #
+#     # title = "ROC Plot: Vary VGGFace Training Data (Extreme Templates, Extreme Test)"
+#     # labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
+#     # file_tag = "vgg_model_test_extreme.png"
+#     # styles = ['b-*', 'r-o', 'g--']
+#     # create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#     #
+#     # # 3) compare VGG training procedure for extreme illumination test set (normal input)
+#     #
+#     # repr_type = "VGG"
+#     # template_data = "normal"
+#     # test_data = "extreme"
+#     #
+#     # logging_dirs = []
+#     # for vgg_model_type in vgg_model_types:
+#     #     logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#     #     logging_dirs.append(logging_dir)
+#     #
+#     # title = "ROC Plot: Vary VGGFace Training Data (Normal Templates, Extreme Test)"
+#     # labels = ["Fine-Tune Normal", "Fine-Tune Extreme", "Pretrain Only"]
+#     # file_tag = "vgg_model_test_extreme_normal_template.png"
+#     # styles = ['b-*', 'r-o', 'g--']
+#     # create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#
+#     # 4) check VGG-extreme on all settings
+#     repr_type = "VGG"
+#     vgg_model_type = "extreme"
+#     labels = []
+#     logging_dirs = []
+#     for template_data in poss_templates:
+#         for test_data in poss_tests:
+#             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#             logging_dirs.append(logging_dir)
+#
+#     labels = ["Normal Template, Normal Test", "Normal Template, Extreme Test", "Extreme Template, Normal Test", "Extreme Template, Extreme Test"]
+#     styles = ['b-*', 'r-o', 'g--', 'p-*']
+#     file_tag = "vgg_extreme_all.png"
+#     title = "ROC Plot: VGG-Extreme vs. Template/Test Pairs"
+#     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#
+#     # 5) check HOG on all settings
+#     repr_type = "HOG"
+#     labels = []
+#     logging_dirs = []
+#     for template_data in poss_templates:
+#         for test_data in poss_tests:
+#             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#             logging_dirs.append(logging_dir)
+#
+#     labels = ["Normal Template, Normal Test", "Normal Template, Extreme Test", "Extreme Template, Normal Test", "Extreme Template, Extreme Test"]
+#     styles = ['b-*', 'r-o', 'g--', 'p-*']
+#     file_tag = "hog_all.png"
+#     title = "ROC Plot: HOG vs. Template/Test Pairs"
+#     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#
+#     # 6) check random projection matrix for all settings of template/test
+#
+#     repr_type = "RANDOM"
+#     labels = []
+#     logging_dirs = []
+#     for template_data in poss_templates:
+#         for test_data in poss_tests:
+#             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#             logging_dirs.append(logging_dir)
+#
+#     labels = ["Normal Template, Normal Test", "Normal Template, Extreme Test", "Extreme Template, Normal Test", "Extreme Template, Extreme Test"]
+#     styles = ['b-*', 'r-o', 'g--', 'p-*']
+#     file_tag = "random_all.png"
+#     title = "ROC Plot: Random vs. Template/Test Pairs"
+#     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#
+#     # 7) check VGG-extreme on all settings
+#     repr_type = "VGG"
+#     vgg_model_type = "normal"
+#     labels = []
+#     logging_dirs = []
+#     for template_data in poss_templates:
+#         for test_data in poss_tests:
+#             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#             logging_dirs.append(logging_dir)
+#
+#     labels = ["Normal Template, Normal Test", "Normal Template, Extreme Test", "Extreme Template, Normal Test", "Extreme Template, Extreme Test"]
+#     styles = ['b-*', 'r-o', 'g--', 'p-*']
+#     file_tag = "vgg_normal_all.png"
+#     title = "ROC Plot: VGG-Normal vs. Template/Test Pairs"
+#     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+#
+#     # 8) check VGG-extreme on all settings
+#     repr_type = "VGG"
+#     vgg_model_type = "pretrain"
+#     labels = []
+#     logging_dirs = []
+#     for template_data in poss_templates:
+#         for test_data in poss_tests:
+#             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type)
+#             logging_dirs.append(logging_dir)
+#
+#     labels = ["Normal Template, Normal Test", "Normal Template, Extreme Test", "Extreme Template, Normal Test", "Extreme Template, Extreme Test"]
+#     styles = ['b-*', 'r-o', 'g--', 'p-*']
+#     file_tag = "vgg_pretrain_all.png"
+#     title = "ROC Plot: VGG Pretrain-Only vs. Template/Test Pairs"
+#     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
