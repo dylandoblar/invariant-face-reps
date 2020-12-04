@@ -223,6 +223,17 @@ def create_overlayed_rocs(title, labels, styles, dirs, output_path):
             all_tprs.append(roc_data["tprs"])
     plot_many_rocs(all_fprs, all_tprs, labels, styles, output_path, title)
 
+def plot_complexity(param_val,metrics,filepath,xlab="Samples", ylab="Acc", title="Sample Complexity"):
+    '''
+    Create plot of sample complexity (x = vary parameters, y = assoc performance metrics)
+    '''
+    plt.figure()
+    plt.plot(param_val, metrics)
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
+    plt.title(title)
+    plt.savefig(filepath)
+
 def get_sample_complexity_params(logging_dir):
     # get sample complexity parameters (num ids, num per id) from directory name
     decomp_dir = logging_dir[:-1].split("_")
@@ -242,6 +253,8 @@ def complexity_heatmap(dirs, all_num_ids, all_samp_per_id, title, output_path, m
             metrics_map = json.load(f)
             param_dir_map[(num_ids, num_samp_per_id)] = metrics_map
 
+    all_samp_per_id = sorted(all_samp_per_id, reverse=True) # so that bottom left is smallest # samp
+
     for num_ids in all_num_ids:
         performance_metrics = []
         for num_samp_per_id in all_samp_per_id:
@@ -249,7 +262,9 @@ def complexity_heatmap(dirs, all_num_ids, all_samp_per_id, title, output_path, m
         all_performance_metrics.append(performance_metrics)
 
     plt.figure()
-    sns.heatmap(all_performance_metrics, xticklabels=map(str, all_num_ids), yticklabels=map(str, all_samp_per_id))
+    sns.heatmap(all_performance_metrics,
+                cmap='RdBu_r', vmin=0, vmax=1,
+                xticklabels=list(map(str, all_num_ids)), yticklabels=list(map(str, all_samp_per_id)))
     plt.title(title)
     plt.xlabel("Num IDs")
     plt.ylabel("Num Samples per ID")
@@ -276,7 +291,7 @@ def get_model_scores(model,dataset, pairs):
     score_label_pairs.sort(key=lambda x: x[0])
     return score_label_pairs
 
-def compute_tsne(model, dataset, output_dir, use_raw_features = True, num_classes=10):
+def compute_tsne(model, dataset, output_dir, title, use_raw_features = True, num_classes=10):
 
     '''
     Project dataset using HOG/VGG features
@@ -288,7 +303,9 @@ def compute_tsne(model, dataset, output_dir, use_raw_features = True, num_classe
     ids = []
     for (img, label, fname) in dataset:
         if use_raw_features: features = model.compute_feats(img)
-        else: features = model.compute_projector([img])
+        else:
+            features = model.compute_representation(img)[0]
+
         X.append(features)
         ids.append(label)
     X = np.array(X)
@@ -312,6 +329,10 @@ def compute_tsne(model, dataset, output_dir, use_raw_features = True, num_classe
         legend="full",
         alpha=0.7
     )
+    plt.title(title)
+
+    if use_raw_features: output_dir += "raw_features_"
+    else: output_dir += "model_rep_"
 
     plt.savefig(output_dir + "tsne.png", dpi=300)
 

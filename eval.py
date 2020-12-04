@@ -128,8 +128,47 @@ def run_experiment(repr_type, template_data, test_data, vgg_model_type=None, num
 
     return logging_dir
 
+def run_tsne(repr_type, template_data, test_data, vgg_model_type=None, num_ids=50, num_per_id=15, num_pca_dim=50):
+    random.seed(1612)
+
+    # manage data + logging directories
+    template_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{template_data}_mvn_template/img'
+    # if vgg_model_type is not None:logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}_{vgg_model_type}/'
+    # else: logging_dir = f'./logging_dir/{repr_type}_{data}_{test_data}/'
+
+    # change data saving if running sample complexity exp
+    logging_dir = f'./logging_dir/tsne/{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
+
+    if not os.path.exists(logging_dir):os.makedirs(logging_dir)
+    #else: return logging_dir  # don't re-run experiment if directory exists (change if need to rerun)
+
+    # create model
+    model = TemplateModel(
+        template_dir,
+        repr_type=repr_type,
+        pca_dim=num_pca_dim,
+        standardize=True,
+        num_thresh_samples=500,
+        num_template_ids=num_ids,
+        num_template_samples_per_id=num_per_id,
+        vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+        logging_dir=logging_dir,
+    )
+
+    test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{test_data}_mvn_test/img'
+    num_ids = 10
+    data_subset = load_dataset(test_dir, num_ids=num_ids, num_samples_per_id=0, shuffle=True,keep_file_names=True)
+    title = f'{repr_type}-Model Features: {template_data} Templates, {test_data} Test'
+    emb_data = compute_tsne(model, data_subset, logging_dir, title, use_raw_features = False, num_classes=num_ids)
+    title = f'{repr_type} Raw Features: {template_data} Templates, {test_data} Test'
+    emb_data = compute_tsne(model, data_subset, logging_dir, title, use_raw_features = True, num_classes=num_ids)
+
+
+
+    return logging_dir
+
 if __name__ == '__main__':
-    #random.seed(1612)
+    # random.seed(1612)
 
     final_output_dir = "./final_plots/"
     if not os.path.exists(final_output_dir): os.makedirs(final_output_dir)
@@ -143,6 +182,10 @@ if __name__ == '__main__':
     test_data = "extreme"
     vgg_model_type = "extreme"
 
+    logging_dirs = []
+    for repr_type in repr_types:
+        logging_dir = run_tsne(repr_type, template_data, test_data, vgg_model_type)
+
     # run sample complexity exp (num_ids, num_per_id)
     # settings = [(15,50), (30,25), (25,30), (50,15), (150,5),(250,3)]
     # for repr_type in repr_types:
@@ -154,24 +197,77 @@ if __name__ == '__main__':
     #         logging_dirs.append(logging_dir)
     #         labels.append(f'Num IDs: {num_ids}, Num Per ID: {num_per_id}')
     #     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*']
-    #     file_tag = f'sample_complexity_{repr_type}_{template_data}_{test_data}.png'
+    #     file_tag = f'./final_plots/sample_complexity_{repr_type}_{template_data}_{test_data}.png'
     #     title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs'
     #     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
 
-    all_num_ids = [5, 10, 25, 50, 100, 500]
-    all_samp_per_id = [5,10,15,25,50]
-    num_pca_dim = 25
-    for repr_type in repr_types:
-        logging_dirs = []
-        for num_ids in all_num_ids:
-            for num_samp_per_id in all_samp_per_id:
-                print("running: ", num_ids, num_samp_per_id)
-                logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_samp_per_id, num_pca_dim,
-                                             True)
-                logging_dirs.append(logging_dir)
-        file_tag = f'sample_complexity_heatmap_{repr_type}_{template_data}_{test_data}.png'
-        title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs'
-        complexity_heatmap(logging_dirs, all_num_ids, all_samp_per_id, title, file_tag)
+
+# if __name__ == '__main__':
+#     #random.seed(1612)
+#
+#     final_output_dir = "./final_plots/"
+#     if not os.path.exists(final_output_dir): os.makedirs(final_output_dir)
+#
+#     repr_types = ["HOG", "VGG"]
+#     vgg_model_types = ["extreme", "normal", "pretrain"]
+#     poss_templates = ["normal", "extreme"]
+#     poss_tests = ["normal", "extreme"]
+#
+#     template_data = "normal"
+#     test_data = "extreme"
+#     vgg_model_type = "extreme"
+#
+#     # run sample complexity exp (num_ids, num_per_id)
+#     # settings = [(15,50), (30,25), (25,30), (50,15), (150,5),(250,3)]
+#     # for repr_type in repr_types:
+#     #     labels = []
+#     #     logging_dirs = []
+#     #     for num_ids, num_per_id in settings:
+#     #         print("running: ", num_ids, num_per_id)
+#     #         logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_per_id, True)
+#     #         logging_dirs.append(logging_dir)
+#     #         labels.append(f'Num IDs: {num_ids}, Num Per ID: {num_per_id}')
+#     #     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*']
+#     #     file_tag = f'./final_plots/sample_complexity_{repr_type}_{template_data}_{test_data}.png'
+#     #     title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs'
+#     #     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+
+    # all_num_ids = [5, 10, 25, 50, 100]#500]
+    # all_samp_per_id = [5,10,15,25,50]
+    # num_pca_dim = 25
+    # for repr_type in repr_types:
+    #     logging_dirs = []
+    #     for num_ids in all_num_ids:
+    #         for num_samp_per_id in all_samp_per_id:
+    #             print("running: ", num_ids, num_samp_per_id)
+    #             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_samp_per_id, num_pca_dim,
+    #                                          True)
+    #             logging_dirs.append(logging_dir)
+    #     for metric in ["mcc", "auc", "accuracy", "f1_score"]:
+    #         file_tag = f'./final_plots/{metric}_sample_complexity_heatmap_{repr_type}_{template_data}_{test_data}.png'
+    #         title = f'Sample Complexity: {repr_type} on Novel Extreme Imgs, {metric}'
+    #         complexity_heatmap(logging_dirs, all_num_ids, all_samp_per_id, title, file_tag, metric)
+
+    # template_data = "extreme"
+    # test_data = "extreme"
+    # vgg_model_type = "extreme"
+    #
+    # all_num_ids = [5, 10, 25, 50, 100]#500]
+    # all_samp_per_id = [5,10,15,25,50]
+    # num_pca_dim = 25
+    # for repr_type in repr_types:
+    #     logging_dirs = []
+    #     for num_ids in all_num_ids:
+    #         for num_samp_per_id in all_samp_per_id:
+    #             print("running: ", num_ids, num_samp_per_id)
+    #             logging_dir = run_experiment(repr_type, template_data, test_data, vgg_model_type, num_ids, num_samp_per_id, num_pca_dim,
+    #                                          True)
+    #             logging_dirs.append(logging_dir)
+    #     for metric in ["mcc", "auc", "accuracy", "f1_score"]:
+    #         file_tag = f'./final_plots/{metric}_sample_complexity_heatmap_{repr_type}_{template_data}_{test_data}.png'
+    #         title = f'Sample Complexity: {repr_type} on Extreme/Extreme, {metric}'
+    #         complexity_heatmap(logging_dirs, all_num_ids, all_samp_per_id, title, file_tag, metric)
+
 
 
 

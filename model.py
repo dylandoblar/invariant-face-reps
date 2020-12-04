@@ -127,6 +127,23 @@ class TemplateModel:
             all_template_feats = self.pca.fit_transform(all_template_feats)
         return all_template_feats
 
+    def compute_representation(self, ex):
+        '''
+        compute template model representation for an img/example (ndarray)
+        '''
+
+        ex_feats = cosine_similarity(self.projector.T, self.compute_feats(ex).reshape(1, -1)).T
+
+        ex_cosine_sims = {
+            idx: cosine_similarity(feats, ex_feats)
+            for idx, feats in self.projected_templates.items()
+        }
+
+        # perform mean pooling
+        ex_mean_pool = np.array([np.mean(sim) for sim in ex_cosine_sims.values()]).reshape(1, -1)
+        return ex_mean_pool
+
+
     def score(self, ex1, ex2):
         '''
         Compute the similarity score for ex1 and ex2.
@@ -134,21 +151,10 @@ class TemplateModel:
         ex1(ndarray): array of pixels for the first identity
         ex2(ndarray): array of pixels for the second identity
         '''
-        ex1_feats = cosine_similarity(self.projector.T, self.compute_feats(ex1).reshape(1, -1)).T
-        ex2_feats = cosine_similarity(self.projector.T, self.compute_feats(ex2).reshape(1, -1)).T
 
-        ex1_cosine_sims = {
-            idx: cosine_similarity(feats, ex1_feats)
-            for idx, feats in self.projected_templates.items()
-        }
-        ex2_cosine_sims = {
-            idx: cosine_similarity(feats, ex2_feats)
-            for idx, feats in self.projected_templates.items()
-        }
-
-        # perform mean pooling
-        ex1_mean_pool = np.array([np.mean(sim) for sim in ex1_cosine_sims.values()]).reshape(1, -1)
-        ex2_mean_pool = np.array([np.mean(sim) for sim in ex2_cosine_sims.values()]).reshape(1, -1)
+        # get representation with pooling
+        ex1_mean_pool = self.compute_representation(ex1)
+        ex2_mean_pool = self.compute_representation(ex2)
 
         # compute score as normalized dot product
         score = cosine_similarity(ex1_mean_pool, ex2_mean_pool).item()
