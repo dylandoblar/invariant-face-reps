@@ -11,7 +11,7 @@ from pprint import pprint
 from tensorflow.keras.models import load_model, Sequential, Model
 from tensorflow.keras.layers import ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout, Flatten, Activation, Dense
 import tensorflow as tf
-
+from skimage.transform import rescale, resize
 
 from utils import *
 
@@ -83,11 +83,15 @@ class TemplateModel:
         print('Template dataset loaded')
 
         # compute the projector operator
+        # self.template_feats = {
+        #     int(idx): [] for idx in set(list(zip(*self.template_img_id_pairs))[1])
+        # }
         self.template_feats = {
-            int(idx): [] for idx in set(list(zip(*self.template_img_id_pairs))[1])
+            idx: [] for idx in set(list(zip(*self.template_img_id_pairs))[1])
         }
         for img, idx in self.template_img_id_pairs:
-            self.template_feats[int(idx)].append(self.compute_feats(img))
+            #self.template_feats[int(idx)].append(self.compute_feats(img))
+            self.template_feats[idx].append(self.compute_feats(img))
         self.template_feats = {
             idx: np.stack(feats, axis=1) for idx, feats in self.template_feats.items()
         }
@@ -101,9 +105,13 @@ class TemplateModel:
         self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples,logging_dir)
 
     def compute_hog_feats(self, img):
+        img = resize(img, (224, 224, 3),
+                     anti_aliasing=True)
         return hog(img, block_norm='L2-Hys', transform_sqrt=True)
 
     def compute_vgg_feats(self, img):
+        img = resize(img, (224, 224, 3),
+                     anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
         activations = self.model.predict(img)[0]
         return activations

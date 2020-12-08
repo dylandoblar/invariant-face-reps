@@ -10,6 +10,15 @@ from tqdm import tqdm
 import pandas as pd
 from MulticoreTSNE import MulticoreTSNE as TSNE
 from sklearn.metrics import auc
+import matplotlib
+
+matplotlib.rcParams['font.sans-serif'] = "Computer Modern Sans Serif"
+matplotlib.rcParams['font.family'] = "sans-serif"
+
+
+axis_text_size = 18
+title_text_size = 18
+legend_text_size = 12
 
 def load_dataset(dataset_dir, num_ids=0, num_samples_per_id=0, shuffle=False,keep_file_names=False):
     '''
@@ -206,10 +215,10 @@ def plot_many_rocs(all_fprs,all_tprs,labels,styles, output_path,title="ROC curve
     for label, fprs, tprs, style in zip(labels, all_fprs,all_tprs,styles):
         auc_score = auc(fprs, tprs)
         plt.plot(fprs, tprs, label=f'{label}, AUC: {round(auc_score,3)}')
-    plt.xlabel('False positive rate')
-    plt.ylabel('True positive rate')
-    plt.title(title)
-    plt.legend(loc="lower right")
+    plt.xlabel('False positive rate', fontsize=axis_text_size)
+    plt.ylabel('True positive rate', fontsize=axis_text_size)
+    plt.title(title, fontsize=title_text_size)
+    plt.legend(loc="lower right", prop={'size': legend_text_size})
     plt.savefig(output_path)
 
 def create_overlayed_rocs(title, labels, styles, dirs, output_path):
@@ -229,9 +238,9 @@ def plot_complexity(param_val,metrics,filepath,xlab="Samples", ylab="Acc", title
     '''
     plt.figure()
     plt.plot(param_val, metrics)
-    plt.xlabel(xlab)
-    plt.ylabel(ylab)
-    plt.title(title)
+    plt.xlabel(xlab, fontsize=axis_text_size)
+    plt.ylabel(ylab, fontsize=axis_text_size)
+    plt.title(title, fontsize=title_text_size)
     plt.savefig(filepath)
 
 def get_sample_complexity_params(logging_dir):
@@ -265,9 +274,9 @@ def complexity_heatmap(dirs, all_num_ids, all_samp_per_id, title, output_path, m
     sns.heatmap(all_performance_metrics,
                 cmap='RdBu_r', vmin=0, vmax=1,
                 xticklabels=list(map(str, all_num_ids)), yticklabels=list(map(str, all_samp_per_id)))
-    plt.title(title)
-    plt.xlabel("Num IDs")
-    plt.ylabel("Num Samples per ID")
+    if title is not None: plt.title(title)
+    plt.xlabel("Num IDs", fontsize=axis_text_size)
+    plt.ylabel("Num Samples per ID", fontsize=axis_text_size)
     plt.savefig(output_path)
 
 def save_data(data, filepath):
@@ -291,7 +300,28 @@ def get_model_scores(model,dataset, pairs):
     score_label_pairs.sort(key=lambda x: x[0])
     return score_label_pairs
 
-def compute_tsne(model, dataset, output_dir, title, use_raw_features = True, num_classes=10):
+def plot_tsne(emb_df,plot_path, title=None,legend_type=False,num_classes=10):
+    #inspired by: https://towardsdatascience.com/visualising-high-dimensional-datasets-using-pca-and-t-sne-in-python-8ef87e7915b
+    print("emb df: ", emb_df.head(5))
+    plt.figure(figsize=(16, 10))
+    emb_df["ID"] = emb_df["id"] # change title for legend (if added)
+    g = sns.scatterplot(
+        x="emb1", y="emb2",
+        hue="ID",
+        palette=sns.color_palette("hls", num_classes),
+        data=emb_df,
+        legend=legend_type,
+        alpha=0.7
+    )
+    g.set(xticklabels=[], yticklabels=[], xlabel=None, ylabel=None)
+    if legend_type != False:
+        plt.setp(g.get_legend().get_texts(), fontsize='18') # for legend text
+        plt.setp(g.get_legend().get_title(), fontsize='18') # for legend title
+    print("title!!", title)
+    if title is not None: plt.title(title, fontsize=40)
+    plt.savefig(plot_path)
+
+def compute_tsne(model, dataset, data_dir, plot_path, title=None, legend_type = False, use_raw_features = True, num_classes=10):
 
     '''
     Project dataset using HOG/VGG features
@@ -301,6 +331,7 @@ def compute_tsne(model, dataset, output_dir, title, use_raw_features = True, num
 
     X = []
     ids = []
+    filenames=[]
     for (img, label, fname) in dataset:
         if use_raw_features: features = model.compute_feats(img)
         else:
@@ -308,34 +339,43 @@ def compute_tsne(model, dataset, output_dir, title, use_raw_features = True, num
 
         X.append(features)
         ids.append(label)
+        filenames.append(fname)
     X = np.array(X)
     print("data matrix: ", np.shape(X))
 
     # compute embeddings
     print("starting tsne.....")
-    embeddings = TSNE(n_jobs=4).fit_transform(X)
+    embeddings = TSNE(n_jobs=4,random_state=7).fit_transform(X)
     print("done with tsne")
 
     #inspired by: https://towardsdatascience.com/visualising-high-dimensional-datasets-using-pca-and-t-sne-in-python-8ef87e7915b
-    emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1], "id":ids})
-    print("emb df: ", emb_df.head(5))
-    print("num ids: ", len(set(ids)))
-    plt.figure(figsize=(16, 10))
-    sns.scatterplot(
-        x="emb1", y="emb2",
-        hue="id",
-        palette=sns.color_palette("hls", num_classes),
-        data=emb_df,
-        legend="full",
-        alpha=0.7
-    )
-    plt.title(title)
+    emb_df = pd.DataFrame(data={"emb1":embeddings[:, 0], "emb2":embeddings[:, 1], "id":ids, "filename":filenames})
 
-    if use_raw_features: output_dir += "raw_features_"
-    else: output_dir += "model_rep_"
+    if use_raw_features: data_dir += "raw_features_"
+    else: data_dir += "model_rep_"
+    emb_df.to_csv(data_dir + "tsne_data.csv")
 
-    plt.savefig(output_dir + "tsne.png", dpi=300)
-
-    emb_df.to_csv(output_dir + "tsne_data.csv")
+    plot_tsne(emb_df, plot_path, title, legend_type, num_classes)
 
     return embeddings
+
+def split_pubfig83_data(src, split_size = 0.5):
+    random.seed(1612)
+
+    src = f'/Users/kcollins/invariant_face_data/pubfig83/'
+    template_dir = src + 'template/'
+    test_dir = src + 'test/'
+    all_files = np.array(os.listdir(src))
+
+    np.random.shuffle(all_files)
+    test_ratio = 0.5
+    template_files, test_files = np.split(np.array(all_files), [int(len(all_files) * (1 - test_ratio))])
+
+    template_files = [name for name in template_files.tolist()]
+    test_files = [name for name in test_files.tolist()]
+
+    print('Total images: ', len(all_files))
+    print('Training: ', len(template_files))
+    print('Testing: ', len(test_files))
+
+    return template_dir, test_dir
