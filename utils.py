@@ -313,11 +313,6 @@ def plot_tsne(emb_df,plot_path, title=None,legend_type=False,num_classes=10):
         legend=legend_type,
         alpha=0.7
     )
-    g.set(xticklabels=[], yticklabels=[], xlabel=None, ylabel=None)
-    if legend_type != False:
-        plt.setp(g.get_legend().get_texts(), fontsize='18') # for legend text
-        plt.setp(g.get_legend().get_title(), fontsize='18') # for legend title
-    print("title!!", title)
     if title is not None: plt.title(title, fontsize=40)
     plt.savefig(plot_path)
 
