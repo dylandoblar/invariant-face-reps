@@ -8,12 +8,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from pprint import pprint
-from tensorflow.keras.models import load_model, Sequential, Model
-from tensorflow.keras.layers import ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout, Flatten, Activation, Dense
 import tensorflow as tf
 from skimage.transform import rescale, resize
+from tensorflow.keras.models import load_model, Sequential, Model
+from tensorflow.keras.layers import ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout, \
+    Flatten, Activation, Dense
 
-from utils import *
+from utils import analyze_errors, complexity_heatmap, compute_tsne, create_overlayed_rocs, \
+    gen_balanced_pairs_from_dataset, get_fp_tn_fn_tp, get_fpr_tpr, get_fpr_tpr_thresh, \
+    get_illum_setting, get_model_scores, get_sample_complexity_params, load_dataset, \
+    plot_complexity, plot_many_rocs, plot_roc, plot_tsne, save_data, scores_to_acc, split_dataset, \
+    write_csv
 
 
 class TemplateModel:
@@ -83,14 +88,11 @@ class TemplateModel:
         print('Template dataset loaded')
 
         # compute the projector operator
-        # self.template_feats = {
-        #     int(idx): [] for idx in set(list(zip(*self.template_img_id_pairs))[1])
-        # }
         self.template_feats = {
             idx: [] for idx in set(list(zip(*self.template_img_id_pairs))[1])
         }
         for img, idx in self.template_img_id_pairs:
-            #self.template_feats[int(idx)].append(self.compute_feats(img))
+            # self.template_feats[int(idx)].append(self.compute_feats(img))
             self.template_feats[idx].append(self.compute_feats(img))
         self.template_feats = {
             idx: np.stack(feats, axis=1) for idx, feats in self.template_feats.items()
@@ -102,7 +104,7 @@ class TemplateModel:
         print('Template projection operator computed')
 
         # tune the threshold on the template images
-        self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples,logging_dir)
+        self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples, logging_dir)
 
     def compute_hog_feats(self, img):
         img = resize(img, (224, 224, 3),
@@ -128,9 +130,7 @@ class TemplateModel:
         '''
         all_template_feats = np.hstack(template_feats.values())
         if self.standardize:
-            # TODO(ddoblar): figure out whether the transposes should be here or not
             all_template_feats = StandardScaler().fit_transform(all_template_feats)
-            #all_template_feats = StandardScaler().fit_transform(all_template_feats.T).T
         if self.pca:
             all_template_feats = self.pca.fit_transform(all_template_feats)
         return all_template_feats
@@ -150,7 +150,6 @@ class TemplateModel:
         # perform mean pooling
         ex_mean_pool = np.array([np.mean(sim) for sim in ex_cosine_sims.values()]).reshape(1, -1)
         return ex_mean_pool
-
 
     def score(self, ex1, ex2):
         '''
@@ -178,7 +177,7 @@ class TemplateModel:
         score = self.score(ex1, ex2)
         return int(score > self.threshold)
 
-    def tune_threshold(self, num_samples=-1,logging_dir=None):
+    def tune_threshold(self, num_samples=-1, logging_dir=None):
         '''
         Tune threshold using the template examples.
 
@@ -213,9 +212,10 @@ class TemplateModel:
         # this is not as efficient as it could be, but it's plenty fast
         accuracies = [scores_to_acc(score_label_pairs, thresh) for thresh in template_scores]
         if logging_dir is not None:
-            if not os.path.exists(logging_dir): os.makedirs(logging_dir)
-            write_csv(score_label_pairs, ["score","label"],logging_dir+"threshold_data.csv")
-            plot_roc(score_label_pairs,logging_dir+"threshold_roc.png")
+            if not os.path.exists(logging_dir):
+                os.makedirs(logging_dir)
+            write_csv(score_label_pairs, ["score", "label"], logging_dir+"threshold_data.csv")
+            plot_roc(score_label_pairs, logging_dir+"threshold_roc.png")
 
         best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
         # take the average of the scores on the inflection point as the threshold
@@ -224,6 +224,5 @@ class TemplateModel:
 
         template_acc = scores_to_acc(score_label_pairs, thresh)
         print(f"Accuracy on the templates with tuned threshold : {template_acc}")
-
 
         return thresh
