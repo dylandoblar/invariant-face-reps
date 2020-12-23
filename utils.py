@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import json
 from tqdm import tqdm
 import pandas as pd
-from MulticoreTSNE import MulticoreTSNE as TSNE
 from sklearn.metrics import auc
 import matplotlib
 import shutil
@@ -373,6 +372,8 @@ def compute_tsne(
     Compute and plot TSNE
     Raw features = direct HOG features or VGG activations
     '''
+
+    from MulticoreTSNE import MulticoreTSNE as TSNE
 
     X = []
     ids = []

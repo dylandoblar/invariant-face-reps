@@ -14,11 +14,7 @@ from tensorflow.keras.models import load_model, Sequential, Model
 from tensorflow.keras.layers import ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout, \
     Flatten, Activation, Dense
 
-from utils import analyze_errors, complexity_heatmap, compute_tsne, create_overlayed_rocs, \
-    gen_balanced_pairs_from_dataset, get_fp_tn_fn_tp, get_fpr_tpr, get_fpr_tpr_thresh, \
-    get_illum_setting, get_model_scores, get_sample_complexity_params, load_dataset, \
-    plot_complexity, plot_many_rocs, plot_roc, plot_tsne, save_data, scores_to_acc, split_dataset, \
-    write_csv
+from utils import gen_balanced_pairs_from_dataset, load_dataset, plot_roc, scores_to_acc, write_csv
 
 
 class VGGModel:
@@ -41,18 +37,25 @@ class VGGModel:
             self.threshold = thresh
             model = load_model(self.vgg_model_path)
             new_model = Sequential()
-            for layer in model.layers[:-1]:  # just exclude last layer from copying
+            for layer in model.layers[:-3]:  # just exclude last layer from copying
+                layer.trainable = False
                 new_model.add(layer)
             self.model = new_model
 
         else:
             # use ImageNet-trained VGG16 model
-            self.model = tf.keras.applications.VGG16(
-                include_top=False,
+            model = tf.keras.applications.VGG16(
+                # include_top=False,
+                include_top=True,
                 weights='imagenet',
-                pooling='avg',
+                input_shape=(224, 224, 3),
+                # pooling='avg',
             )
-        self.model.summary()
+            new_model = Sequential()
+            for layer in model.layers[:-1]:  # just exclude last layer from copying
+                layer.trainable = False
+                new_model.add(layer)
+            self.model = new_model
 
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
@@ -277,3 +280,10 @@ class TemplateModel:
         template_acc = scores_to_acc(score_label_pairs, thresh)
         print(f"Accuracy on the templates with tuned threshold : {template_acc}")
         return thresh
+
+
+if __name__=='__main__':
+    vgg_face_model = VGGModel(vgg_face=True, vgg_model_path='/om2/user/ddoblar/ill-inv/models/vgg_model_face.h5')
+    vgg_face_model.model.summary()
+    vgg_imagenet_model = VGGModel(vgg_face=False)
+    vgg_imagenet_model.model.summary()
