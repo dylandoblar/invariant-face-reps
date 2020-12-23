@@ -34,7 +34,6 @@ class VGGModel:
             if vgg_model_path is None or not os.path.exists(vgg_model_path):
                 raise FileExistsError("Please pass valid model (.h5) file.")
             self.vgg_model_path = vgg_model_path
-            self.threshold = thresh
             model = load_model(self.vgg_model_path)
             new_model = Sequential()
             for layer in model.layers[:-3]:  # just exclude last layer from copying
@@ -56,13 +55,14 @@ class VGGModel:
                 layer.trainable = False
                 new_model.add(layer)
             self.model = new_model
+        self.normalize = normalize
+        self.threshold = thresh
 
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
         img = tf.keras.applications.vgg16.preprocess_input(img)
-        # TODO: make sure we want the [0] for ImageNet model in next line as well
-        activations = self.model.predict(img)[0]
+        activations = self.model.predict(img)[0][0]
         return activations
 
     def score(self, ex1, ex2):
@@ -73,7 +73,7 @@ class VGGModel:
         '''
         ex1_activations = self.compute_vgg_feats(ex1)
         ex2_activations = self.compute_vgg_feats(ex2)
-        if normalize:
+        if self.normalize:
             # perform L2 normalization
             norm1 = np.linalg.norm(ex1_activations)
             norm2 = np.linalg.norm(ex2_activations)

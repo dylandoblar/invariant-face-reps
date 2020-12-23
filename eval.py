@@ -1,7 +1,7 @@
 import random
 from tqdm import tqdm
 
-from model import TemplateModel
+from model import TemplateModel, VGGModel
 from utils import *
 from sklearn.metrics import classification_report, f1_score, matthews_corrcoef, auc
 import shutil
@@ -152,7 +152,7 @@ def run_tsne(
             num_thresh_samples=500,
             num_template_ids=num_ids,
             num_template_samples_per_id=num_per_id,
-            vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+            vgg_model_path=f'../models/vgg_model_{vgg_model_type}.h5',
             logging_dir=logging_dir,
         )
 
@@ -208,17 +208,23 @@ def run_experiment(
     #     return logging_dir  # don't re-run experiment if directory exists (change if need rerun)
 
     # create model
-    model = TemplateModel(
-        template_dir,
-        repr_type=repr_type,
-        pca_dim=num_pca_dim,
-        standardize=True,
-        num_thresh_samples=num_thresh,
-        num_template_ids=num_ids,
-        num_template_samples_per_id=num_per_id,
-        vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
-        logging_dir=logging_dir,
-    )
+    if repr_type == "VGG":
+        model = VGGModel(vgg_face=(vgg_model_type == "face"),
+                         vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+                         normalize=False,
+                         thresh=0.7)
+    else:
+        model = TemplateModel(
+            template_dir,
+            repr_type=repr_type,
+            pca_dim=num_pca_dim,
+            standardize=True,
+            num_thresh_samples=num_thresh,
+            num_template_ids=num_ids,
+            num_template_samples_per_id=num_per_id,
+            vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+            logging_dir=logging_dir,
+        )
 
     dataset = load_dataset(test_dir, keep_file_names=True)
     acc = evaluate(model, dataset, num_samples=100, logging_dir=logging_dir)
@@ -236,7 +242,7 @@ if __name__ == '__main__':
     do_tsne = False
 
     main_logging_dir = f'./logging_dir/'
-    data_dir = f'/Users/kcollins/invariant_face_data/illum_data/'
+    data_dir = f'/om2/user/ddoblar/parametric-face-image-generator/data/output/'
     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*', 'r-^', 'k-o', 'g-*']
     all_metrics = ["mcc", "auc", "accuracy", "f1_score"]
 
@@ -248,18 +254,52 @@ if __name__ == '__main__':
     num_ids = 50
     num_per_id = 15
     num_pca_dim = 50
-    num_thresh = 500
+    num_thresh = 50
+
+    template_data = "normal"
+    test_data = "normal"
+    vgg_model_type = "face"
+    logging_dirs = []
+    for repr_type in repr_types:
+        template_dir = \
+            f'{data_dir}ill_{template_data}_mvn_template/img'
+        test_dir = f'{data_dir}ill_{test_data}_mvn_test/img'
+        if repr_type == "HOG":
+            logging_dir = \
+                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}/'
+        else:
+            logging_dir = \
+                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
+        run_experiment(
+            repr_type,
+            template_dir,
+            test_dir,
+            logging_dir,
+            vgg_model_type,
+            num_ids=num_ids,
+            num_per_id=num_per_id,
+            num_pca_dim=num_pca_dim,
+            num_thresh=num_thresh
+        )
+        logging_dirs.append(logging_dir)
+    file_tag = f'hog_vgg_all_{test_data}.png'
+    title = f'HOG vs. VGG-Face: Extreme Illumination'
+    labels = ["HOG (Natural)", "VGG-Face (Natural)", "HOG (Extreme)", "VGG-Face (Extreme)"]
+    create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+    vgg_model_type = "face"
 
     vgg_model_type = "face"
-    test_data = "extreme"
+    test_data = "normal"
     logging_dirs = []
     for template_data in poss_templates:
         template_dir = \
-            f'/Users/kcollins/invariant_face_data/illum_data/ill_{template_data}_mvn_template/img'
-        test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{test_data}_mvn_test/img'
+            f'{data_dir}ill_{template_data}_mvn_template/img'
+        test_dir = f'{data_dir}ill_{test_data}_mvn_test/img'
         for repr_type in repr_types:
-            logging_dir = \
-                f'{main_logging_dir}_{repr_type}_{template_data}_{test_data}_{vgg_model_type}'
+            if repr_type=="HOG": logging_dir = \
+                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}/'
+            else: logging_dir = \
+                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
             run_experiment(
                 repr_type,
                 template_dir,
