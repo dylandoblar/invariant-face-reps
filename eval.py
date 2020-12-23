@@ -198,6 +198,7 @@ def run_experiment(
     num_per_id=15,
     num_pca_dim=50,
     num_thresh=500,
+    thresh=0.5
 ):
     # random.seed(7)
 
@@ -212,7 +213,7 @@ def run_experiment(
         model = VGGModel(vgg_face=(vgg_model_type == "face"),
                          vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
                          normalize=False,
-                         thresh=0.7)
+                         thresh=thresh)
     else:
         model = TemplateModel(
             template_dir,
@@ -279,17 +280,18 @@ if __name__ == '__main__':
             num_ids=num_ids,
             num_per_id=num_per_id,
             num_pca_dim=num_pca_dim,
-            num_thresh=num_thresh
+            num_thresh=num_thresh,
+            thresh=0.7
         )
         logging_dirs.append(logging_dir)
     file_tag = f'hog_vgg_all_{test_data}.png'
-    title = f'HOG vs. VGG-Face: Extreme Illumination'
-    labels = ["HOG (Natural)", "VGG-Face (Natural)", "HOG (Extreme)", "VGG-Face (Extreme)"]
+    title = f'HOG vs. VGG-Face: Natural Illumination'
+    labels = ["HOG", "VGG-Face"]
     create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
     vgg_model_type = "face"
 
     vgg_model_type = "face"
-    test_data = "normal"
+    test_data = "extreme"
     logging_dirs = []
     for template_data in poss_templates:
         template_dir = \
@@ -309,7 +311,8 @@ if __name__ == '__main__':
                 num_ids=num_ids,
                 num_per_id=num_per_id,
                 num_pca_dim=num_pca_dim,
-                num_thresh=num_thresh
+                num_thresh=num_thresh,
+                thresh=0.7
             )
             logging_dirs.append(logging_dir)
     file_tag = f'hog_vgg_all_{test_data}.png'
