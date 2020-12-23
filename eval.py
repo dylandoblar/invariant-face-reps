@@ -255,7 +255,7 @@ if __name__ == '__main__':
     num_ids = 50
     num_per_id = 15
     num_pca_dim = 50
-    num_thresh = 50
+    num_thresh = 500
 
     template_data = "normal"
     test_data = "normal"
