@@ -130,7 +130,7 @@ class TemplateModel:
         if self.standardize:
             # TODO(ddoblar): figure out whether the transposes should be here or not
             all_template_feats = StandardScaler().fit_transform(all_template_feats)
-            # all_template_feats = StandardScaler().fit_transform(all_template_feats.T).T
+            #all_template_feats = StandardScaler().fit_transform(all_template_feats.T).T
         if self.pca:
             all_template_feats = self.pca.fit_transform(all_template_feats)
         return all_template_feats

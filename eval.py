@@ -288,26 +288,121 @@ if __name__ == '__main__':
     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*', 'r-^', 'k-o', 'g-*']
     all_metrics = ["mcc", "auc", "accuracy", "f1_score"]
 
-    data_types = ['ill_normal_rot_yaw_-90_90_uniform', 'rot_yaw_-45_45_uniform', 'rot_yaw_-90_90_uniform']
-    data_names = ["Coupled", "Natural", "Extreme"]
-    repr_type = "HOG"
+    repr_types = ["HOG", "VGG"]
+    vgg_model_type = ["limited", "full"]
 
+    data_types = ['SUFR-W', 'uniform_bg/yaw_less','rot_yaw_-45_45_uniform', 'rot_yaw_-90_90_uniform','ill_normal_rot_yaw_-90_90_uniform', 'rot_yaw_-30_30_uniform', 'rot_yaw_head_-30_30_uniform']
+    data_names = ['sufr', 'uniform_bg', "limited", "full","coupled", "face30", "fullHead30"]
+    data_map = {name: file_tag for name, file_tag in zip(data_names, data_types)}
+
+    num_ids = 100
+    num_per_id = 13
+    num_pca_dim=25
+    data_name = "sufr"
+    data_type = data_map[data_name]
     logging_dirs = []
     labels = []
-    num_ids = 100
-    num_per_id = 30
-    for template_data, template_name in zip(data_types, data_names):
-        for test_data, test_name in zip(data_types, data_names):
-            template_dir = f'{rot_data_dir}{template_data}_template/img'
-            test_dir = f'{rot_data_dir}{test_data}_test/img'
-            logging_dir = f'{main_logging_dir}/{template_name}_{test_name}/'
-            logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir,num_ids=num_ids, num_per_id=num_per_id)
+    repr_type = "HOG"
+    #split_dataset(f'{rot_data_dir}{data_type}')
+    template_dir = f'{rot_data_dir}{data_type}_template/img'
+    test_dir = f'{rot_data_dir}{data_type}_test/img'
+    logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+    logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name,num_ids=num_ids, num_per_id=num_per_id,num_pca_dim=num_pca_dim)
+    file_tag = f'{data_name}_hog.png'
+    title = f'HOG: SUFR-W'
+    create_overlayed_rocs(title, ["HOG"], styles, [logging_dir], final_output_dir + file_tag)
+
+    data_name = "uniform_bg"
+    data_type = data_map[data_name]
+    logging_dirs = []
+    labels = []
+    repr_type = "HOG"
+    #split_dataset(f'{rot_data_dir}{data_type}')
+    template_dir = f'{rot_data_dir}{data_type}_template/img'
+    test_dir = f'{rot_data_dir}{data_type}_test/img'
+    logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+    logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name,num_ids=num_ids, num_per_id=8,num_pca_dim=num_pca_dim)
+    file_tag = f'{data_name}_hog.png'
+    title = f'HOG: Uniform Background, Synthetic'
+    create_overlayed_rocs(title, ["HOG"], styles, [logging_dir], final_output_dir + file_tag)
+
+    data_name = "face30"
+    data_type = data_map[data_name]
+    logging_dirs = []
+    labels = []
+    repr_type = "HOG"
+    template_dir = f'{rot_data_dir}{data_type}_template/img'
+    test_dir = f'{rot_data_dir}{data_type}_test/img'
+    logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+    logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name,num_ids=num_ids, num_per_id=num_per_id)
+    file_tag = f'{data_name}_hog.png'
+    title = f'HOG: +/- 30 Face Only'
+    create_overlayed_rocs(title, ["HOG"], styles, [logging_dir], final_output_dir + file_tag)
+
+    data_name = "fullHead30"
+    data_type = data_map[data_name]
+    logging_dirs = []
+    labels = []
+    repr_type = "HOG"
+    template_dir = f'{rot_data_dir}{data_type}_template/img'
+    test_dir = f'{rot_data_dir}{data_type}_test/img'
+    logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+    logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name,num_ids=num_ids, num_per_id=num_per_id)
+    file_tag = f'{data_name}_hog.png'
+    title = f'HOG: +/- 30 Full Head'
+    create_overlayed_rocs(title, ["HOG"], styles, [logging_dir], final_output_dir + file_tag)
+
+    for data_name in ["full", "limited"]:
+        data_type = data_map[data_name]
+        logging_dirs = []
+        labels = []
+        for repr_type in repr_types:
+            template_dir = f'{rot_data_dir}{data_type}_template/img'
+            test_dir = f'{rot_data_dir}{data_type}_test/img'
+            logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+            logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name)
             logging_dirs.append(logging_dir)
-            labels.append(f'({template_name}, {test_name})')
-    file_tag = f'all_new_rot_exps.png'
-    title = f'Explore Rotation'
-    #title = f'{template_name} Templates, {test_name} Test'
-    create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+            labels.append(repr_type)
+        file_tag = f'{data_name}_hog_vgg.png'
+        title = f'HOG vs. VGG: {data_name.capitalize()} Pose'
+        create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
+
+    data_name = "coupled"
+    data_type = data_map[data_name]
+    logging_dirs = []
+    labels = []
+    repr_type = "HOG"
+    template_dir = f'{rot_data_dir}{data_type}_template/img'
+    test_dir = f'{rot_data_dir}{data_type}_test/img'
+    logging_dir = f'{main_logging_dir}/{repr_type}_{data_name}_{data_name}_{data_name}/' # repr type, train data, test data, vgg model type
+    logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir, vgg_model_type=data_name)
+    file_tag = f'{data_name}_hog.png'
+    title = f'HOG: {data_name.capitalize()} Pose + Illumination'
+    create_overlayed_rocs(title, ["HOG"], styles, [logging_dir], final_output_dir + file_tag)
+
+    # repr_type = "HOG"
+    # data_type= "normal"
+    # template_dir =f'/Users/kcollins/invariant_face_data/illum_data/ill_{data_type}_mvn_template/img'
+    # test_dir =f'/Users/kcollins/invariant_face_data/illum_data/ill_{data_type}_mvn_test/img'
+    # logging_dir = f'{main_logging_dir}/debug_{data_type}_{data_type}/'
+    # logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir)
+
+    # logging_dirs = []
+    # labels = []
+    # num_ids = 50
+    # num_per_id = 30
+    # for template_data, template_name in zip(data_types, data_names):
+    #     for test_data, test_name in zip(data_types, data_names):
+    #         template_dir = f'{rot_data_dir}{template_data}_template/img'
+    #         test_dir = f'{rot_data_dir}{test_data}_test/img'
+    #         logging_dir = f'{main_logging_dir}/{template_name}_{test_name}/'
+    #         logging_dir = run_rot_data_exp(repr_type, template_dir, test_dir, logging_dir,num_ids=num_ids, num_per_id=num_per_id)
+    #         logging_dirs.append(logging_dir)
+    #         labels.append(f'({template_name}, {test_name})')
+    # file_tag = f'all_new_rot_exps.png'
+    # title = f'Explore Rotation'
+    # #title = f'{template_name} Templates, {test_name} Test'
+    # create_overlayed_rocs(title, labels, styles, logging_dirs, final_output_dir + file_tag)
 
 # if __name__ == '__main__':
 #

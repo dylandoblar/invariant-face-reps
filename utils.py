@@ -11,6 +11,7 @@ import pandas as pd
 from MulticoreTSNE import MulticoreTSNE as TSNE
 from sklearn.metrics import auc
 import matplotlib
+import shutil
 
 matplotlib.rcParams['font.sans-serif'] = "Computer Modern Sans Serif"
 matplotlib.rcParams['font.family'] = "sans-serif"
@@ -354,23 +355,39 @@ def compute_tsne(model, dataset, data_dir, plot_path, title=None, legend_type = 
 
     return embeddings
 
-def split_pubfig83_data(src, split_size = 0.5):
+def split_dataset(src, split_size = 0.5):
     random.seed(1612)
 
-    src = f'/Users/kcollins/invariant_face_data/pubfig83/'
-    template_dir = src + 'template/'
-    test_dir = src + 'test/'
+    template_dir = src + '_template/img/'
+    test_dir = src + '_test/img/'
     all_files = np.array(os.listdir(src))
 
     np.random.shuffle(all_files)
-    test_ratio = 0.5
-    template_files, test_files = np.split(np.array(all_files), [int(len(all_files) * (1 - test_ratio))])
+    template_files, test_files = np.split(np.array(all_files), [int(len(all_files) * (1 - split_size))])
 
-    template_files = [name for name in template_files.tolist()]
-    test_files = [name for name in test_files.tolist()]
+    template_files = [name for name in template_files.tolist() if name != ".DS_Store"]
+    test_files = [name for name in test_files.tolist() if name != ".DS_Store"]
 
     print('Total images: ', len(all_files))
     print('Training: ', len(template_files))
     print('Testing: ', len(test_files))
+
+    for f in template_files:
+        if f == ".DS_Store": continue
+        local_root = os.path.join(src, f)
+        for idx, orig_name in enumerate(os.listdir(local_root)):
+            if orig_name == ".DS_Store": continue
+            new_dir = template_dir + f + "/"
+            if not os.path.exists(new_dir): os.makedirs(new_dir)
+            shutil.copy2(local_root + "/" + orig_name, new_dir + f + "_" + str(idx) + ".jpg")
+
+    for f in test_files:
+        if f == ".DS_Store": continue
+        local_root = os.path.join(src, f)
+        for idx, orig_name in enumerate(os.listdir(local_root)):
+            if orig_name == ".DS_Store": continue
+            new_dir = test_dir + f + "/"
+            if not os.path.exists(new_dir): os.makedirs(new_dir)
+            shutil.copy2(local_root + "/" + orig_name, new_dir + f + "_" + str(idx) + ".jpg")
 
     return template_dir, test_dir
