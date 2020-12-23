@@ -14,7 +14,6 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
     Evaluates the model on pairs of examples in the dataset specified by dataset_path.
     Returns accuracy on sampled pairs of examples in the dataset. Classes are balanced such
     that there are equal number of same and different pairs in the evaluation set.
-
     num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
                         (2) different labels for tuning the threshold. If -1, use as many
                         samples as possible while keeping classes balanced.
@@ -56,7 +55,7 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
     metric_map = {
         "accuracy": accuracy,
         "mcc": matthews_corrcoef(ytrue, ypred),
-        "precision": tp/(tp+fp),
+        "precision": tp / (tp + fp),
         "recall": tp / (tp + fn),
         "fpr": fpr,
         "tpr": tpr,
@@ -76,12 +75,12 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
         write_csv(
             wrong_pairs,
             ["fname1", "label1", "fname2", "label2"],
-            logging_dir+"wrong_pairs.csv"
+            logging_dir + "wrong_pairs.csv"
         )
         write_csv(
             correct_pairs,
             ["fname1", "label1", "fname2", "label2"],
-            logging_dir+"correct_pairs.csv"
+            logging_dir + "correct_pairs.csv"
         )
         # analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir)
         roc_data = plot_roc(
@@ -90,7 +89,7 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
         )
         save_data(roc_data, logging_dir + "roc_data.json")
         metric_map["auc"] = roc_data["auc_score"]
-        save_data(metric_map, logging_dir+"metrics.json")
+        save_data(metric_map, logging_dir + "metrics.json")
 
     return accuracy
 

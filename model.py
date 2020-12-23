@@ -21,6 +21,77 @@ from utils import analyze_errors, complexity_heatmap, compute_tsne, create_overl
     write_csv
 
 
+class VGGModel:
+    def __init__(self, vgg_face=True, vgg_model_path=None, normalize=False, thresh=0.5):
+        # TODO(katiemc): better default thresh
+        '''
+        Wrapper class for VGG model.
+        vgg_face(bool): if True, use a VGG-Face model pre-trained on celebrity faces;
+            else, use a VGG16 model pre-trained on ImageNet
+        vgg_model_path(str): path of model weights if using VGG-Face (usually an .h5 file)
+        normalize(bool): whether activations should be L2-normalized before computing cosine sims.
+            normalization is probably not necessary since L2 normalization is performed with cosine
+        '''
+        tf.autograph.set_verbosity(0)
+        if vgg_face:
+            # use VGG-Face model with pre-trained weights
+            if vgg_model_path is None or not os.path.exists(vgg_model_path):
+                raise FileExistsError("Please pass valid model (.h5) file.")
+            self.vgg_model_path = vgg_model_path
+            self.threshold = thresh
+            model = load_model(self.vgg_model_path)
+            new_model = Sequential()
+            for layer in model.layers[:-1]:  # just exclude last layer from copying
+                new_model.add(layer)
+            self.model = new_model
+
+        else:
+            # use ImageNet-trained VGG16 model
+            self.model = tf.keras.applications.VGG16(
+                include_top=False,
+                weights='imagenet',
+                pooling='avg',
+            )
+        self.model.summary()
+
+    def compute_vgg_feats(self, img):
+        img = resize(img, (224, 224, 3), anti_aliasing=True)
+        img = np.expand_dims(img, axis=0)
+        img = tf.keras.applications.vgg16.preprocess_input(img)
+        # TODO: make sure we want the [0] for ImageNet model in next line as well
+        activations = self.model.predict(img)[0]
+        return activations
+
+    def score(self, ex1, ex2):
+        '''
+        Compute the similarity score for ex1 and ex2.
+        ex1(ndarray): array of pixels for the first identity
+        ex2(ndarray): array of pixels for the second identity
+        '''
+        ex1_activations = self.compute_vgg_feats(ex1)
+        ex2_activations = self.compute_vgg_feats(ex2)
+        if normalize:
+            # perform L2 normalization
+            norm1 = np.linalg.norm(ex1_activations)
+            norm2 = np.linalg.norm(ex2_activations)
+            if norm1 >= 1e-7:
+                ex1_activations /= norm1
+            if norm2 >= 1e-7:
+                ex2_activations /= norm2
+        # compute score as normalized dot product
+        score = cosine_similarity(ex1_activations, ex2_activations).item()
+        return score
+
+    def predict(self, ex1, ex2):
+        '''
+        Predict whether ex1 and ex2 have the same identity.
+        ex1(ndarray): model representation of first example
+        ex2(ndarray): model representation of second example
+        '''
+        score = self.score(ex1, ex2)
+        return int(score > self.threshold)
+
+
 class TemplateModel:
     def __init__(
         self,
@@ -42,7 +113,6 @@ class TemplateModel:
         activations of a pre-trained VGG-Face model are used in this case). Refer to the paper
         for model details:
         https://papers.nips.cc/paper/2013/file/ad3019b856147c17e82a5bead782d2a8-Paper.pdf
-
         template_dir(str): root directory of the template images
         repr_type(str): type of feature for model to use; one of 'HOG' or 'VGG' or 'RANDOM'
                         (if VGG, embeddings from the penultimate layer of pretrained VGG-Face
@@ -63,7 +133,6 @@ class TemplateModel:
         if repr_type == 'HOG':
             self.compute_feats = self.compute_hog_feats
         elif repr_type == 'VGG':
-
             tf.autograph.set_verbosity(0)
             if vgg_model_path is None or not os.path.exists(vgg_model_path):
                 raise FileExistsError("Please pass valid model (.h5) file.")
@@ -74,12 +143,10 @@ class TemplateModel:
                 new_model.add(layer)
             self.model = new_model
             self.compute_feats = self.compute_vgg_feats
-            self.vgg_model_path = vgg_model_path
         elif repr_type == 'RANDOM':
             self.compute_feats = self.compute_random_feats
         else:
             raise ValueError("repr_type must be one of 'HOG', 'VGG', or 'RANDOM'")
-
         self.template_img_id_pairs = load_dataset(
             template_dir,
             num_ids=num_template_ids,
@@ -102,19 +169,18 @@ class TemplateModel:
             idx: np.dot(self.projector.T, feat).T for idx, feat in self.template_feats.items()
         }
         print('Template projection operator computed')
-
         # tune the threshold on the template images
         self.threshold = thresh if thresh else self.tune_threshold(num_thresh_samples, logging_dir)
 
     def compute_hog_feats(self, img):
-        img = resize(img, (224, 224, 3),
-                     anti_aliasing=True)
+        img = resize(img, (224, 224, 3), anti_aliasing=True)
         return hog(img, block_norm='L2-Hys', transform_sqrt=True)
 
     def compute_vgg_feats(self, img):
-        img = resize(img, (224, 224, 3),
-                     anti_aliasing=True)
+        img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
+        # TODO(ddoblar): uncomment next line for preprocessing of input img
+        # img = tf.keras.applications.vgg16.preprocess_input(img)
         activations = self.model.predict(img)[0]
         return activations
 
@@ -137,42 +203,35 @@ class TemplateModel:
 
     def compute_representation(self, ex):
         '''
-        compute template model representation for an img/example (ndarray)
+        compute template model's signature (final representation) for an img/example (ndarray)
         '''
-
         ex_feats = cosine_similarity(self.projector.T, self.compute_feats(ex).reshape(1, -1)).T
-
         ex_cosine_sims = {
             idx: cosine_similarity(feats, ex_feats)
             for idx, feats in self.projected_templates.items()
         }
-
         # perform mean pooling
-        ex_mean_pool = np.array([np.mean(sim) for sim in ex_cosine_sims.values()]).reshape(1, -1)
-        return ex_mean_pool
+        ex_signature = np.array([np.mean(sim) for sim in ex_cosine_sims.values()]).reshape(1, -1)
+        return ex_signature
 
     def score(self, ex1, ex2):
         '''
         Compute the similarity score for ex1 and ex2.
-
         ex1(ndarray): array of pixels for the first identity
         ex2(ndarray): array of pixels for the second identity
         '''
-
         # get representation with pooling
-        ex1_mean_pool = self.compute_representation(ex1)
-        ex2_mean_pool = self.compute_representation(ex2)
-
+        ex1_signature = self.compute_representation(ex1)
+        ex2_signature = self.compute_representation(ex2)
         # compute score as normalized dot product
-        score = cosine_similarity(ex1_mean_pool, ex2_mean_pool).item()
+        score = cosine_similarity(ex1_signature, ex2_signature).item()
         return score
 
     def predict(self, ex1, ex2):
         '''
         Predict whether ex1 and ex2 have the same identity.
-
-        ex1(ndarray): array of pixels for the first identity
-        ex2(ndarray): array of pixels for the second identity
+        ex1(ndarray): model representation of first example
+        ex2(ndarray): model representation of second example
         '''
         score = self.score(ex1, ex2)
         return int(score > self.threshold)
@@ -180,24 +239,20 @@ class TemplateModel:
     def tune_threshold(self, num_samples=-1, logging_dir=None):
         '''
         Tune threshold using the template examples.
-
         num_samples pairs are sampled from all samples in the template set such that there are
         equal number same ID and different ID pairs. Threshold is tuned by computing the accuracy
         for each bin of possible thresholds (a threshold between two scores in the sampled pair
         in sorded order will not change the accuracy), then choosing the threshold to be in the
         center of the bin of possible thresholds that maximizes accuracy on the sampled template
         pairs.
-
         num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
                           (2) different labels for tuning the threshold. If -1, use as many
                           samples as possible while keeping classes balanced.
         logging_dir(str): where to save threshold data and/or plots
-
         Returns: tuned threshold(float)
         '''
         print('Tuning threshold:')
         pairs = gen_balanced_pairs_from_dataset(self.template_img_id_pairs, num_samples)
-
         score_label_pairs = []
         for idx1, idx2 in tqdm(pairs):
             ex1, label1 = self.template_img_id_pairs[idx1]
@@ -206,7 +261,6 @@ class TemplateModel:
             label = int(label1 == label2)
             score_label_pairs.append((score, label))
         score_label_pairs.sort(key=lambda x: x[0])
-
         # choose the thresh that minimizes the number of misclassified pairs
         template_scores = list(zip(*score_label_pairs))[0]
         # this is not as efficient as it could be, but it's plenty fast
@@ -216,13 +270,10 @@ class TemplateModel:
                 os.makedirs(logging_dir)
             write_csv(score_label_pairs, ["score", "label"], logging_dir+"threshold_data.csv")
             plot_roc(score_label_pairs, logging_dir+"threshold_roc.png")
-
         best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
         # take the average of the scores on the inflection point as the threshold
         thresh = (template_scores[best_idx] + template_scores[best_idx+1]) / 2
         print(f'Tuned threshold : {thresh}')
-
         template_acc = scores_to_acc(score_label_pairs, thresh)
         print(f"Accuracy on the templates with tuned threshold : {template_acc}")
-
         return thresh
