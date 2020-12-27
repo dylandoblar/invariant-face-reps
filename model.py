@@ -51,18 +51,22 @@ class VGGModel:
                 # pooling='avg',
             )
             new_model = Sequential()
-            for layer in model.layers[:-1]:  # just exclude last layer from copying
+            for layer in model.layers[:-3]:  # just exclude last layer from copying
                 layer.trainable = False
                 new_model.add(layer)
             self.model = new_model
         self.normalize = normalize
         self.threshold = thresh
+        # features are the same as representation
+        self.compute_feats = self.compute_vgg_feats
 
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
         img = tf.keras.applications.vgg16.preprocess_input(img)
-        activations = self.model.predict(img)[0][0]
+        #print("pre-act shape: ", np.shape(self.model.predict(img)))
+        activations = np.squeeze(self.model.predict(img)[0])#[0]
+        #print("post-act shape:", np.shape(activations))
         return activations
 
     def score(self, ex1, ex2):
@@ -82,7 +86,7 @@ class VGGModel:
             if norm2 >= 1e-7:
                 ex2_activations /= norm2
         # compute score as normalized dot product
-        score = cosine_similarity(ex1_activations, ex2_activations).item()
+        score = cosine_similarity(ex1_activations.reshape(1, -1), ex2_activations.reshape(1, -1)).item()
         return score
 
     def predict(self, ex1, ex2):

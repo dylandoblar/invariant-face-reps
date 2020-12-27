@@ -94,96 +94,72 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
     return accuracy
 
 
-def run_tsne(
-    titles,
-    plot_output_dir,
-    repr_type,
-    template_data,
-    test_data,
-    vgg_model_type=None,
-    num_ids=50,
-    num_per_id=15,
-    num_pca_dim=50,
-    num_classes=10
-):
-    # random.seed(1612)
-    # manage data + logging directories
-    if template_data == "pubfig83":
-        template_dir = f'/Users/kcollins/invariant_face_data/{template_data}/template'
-        # change data saving if running sample complexity exp
-        logging_dir = f'./logging_dir/{data_type}/{repr_type}_{vgg_model_type}/'
-        test_dir = f'/Users/kcollins/invariant_face_data/{template_data}/test'
-        legend_type = "full"
-    else:
-        template_dir = \
-            f'/Users/kcollins/invariant_face_data/illum_data/ill_{template_data}_mvn_template/img'
-        # change data saving if running sample complexity exp
-        logging_dir = \
-            f'./logging_dir/tsne/{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
-        test_dir = f'/Users/kcollins/invariant_face_data/illum_data/ill_{test_data}_mvn_test/img'
+def run_tsne(repr_type, template_dir, test_dir, logging_dir, plot_output_path,
+             vgg_model_type=None,
+             legend_type="full",
+             num_ids=50,
+             num_per_id=15,
+             num_pca_dim=50,
+             num_classes=10,
+             include_raw_features=False,
+             thresh=0.5,
+             title=None):
+
+    random.seed(7)
 
     if not os.path.exists(logging_dir):
         os.makedirs(logging_dir)
 
-    # check if embedding data is already saved
-    data_file = logging_dir + "model_rep_tsne_data.csv"
-    if os.path.exists(data_file):
-        # just get plots
-        # read in embedding data
-        emb_df = pd.read_csv(data_file)
-        filepath = \
-            f'{plot_output_dir}{repr_type}_{template_data}_{test_data}_model_features_tsne.png'
-        plot_tsne(emb_df, filepath, titles[0], legend_type, num_classes)
-
-        data_file = logging_dir + "raw_features_tsne_data.csv"
-        emb_df = pd.read_csv(data_file)
-        filepath = f'{plot_output_dir}{repr_type}_{template_data}_{test_data}_raw_features_tsne.png'
-        plot_tsne(emb_df, filepath, titles[1], legend_type, num_classes)
-        return logging_dir
+    # create model
+    if repr_type == "VGG":
+        model = VGGModel(vgg_face=(vgg_model_type == "face"),
+                         vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
+                         normalize=False,
+                         thresh=thresh)
     else:
-        # otherwise, run everything:
-
-        # create model
         model = TemplateModel(
             template_dir,
             repr_type=repr_type,
             pca_dim=num_pca_dim,
             standardize=True,
-            num_thresh_samples=500,
+            num_thresh_samples=num_thresh,
             num_template_ids=num_ids,
             num_template_samples_per_id=num_per_id,
-            vgg_model_path=f'../models/vgg_model_{vgg_model_type}.h5',
+            vgg_model_path=f'vgg_model_{vgg_model_type}.h5',
             logging_dir=logging_dir,
         )
 
-        data_subset = load_dataset(
-            test_dir,
-            num_ids=num_classes,
-            num_samples_per_id=0,
-            shuffle=True,
-            keep_file_names=True
-        )
+    data_subset = load_dataset(
+        test_dir,
+        num_ids=num_classes,
+        num_samples_per_id=0,
+        shuffle=True,
+        keep_file_names=True
+    )
+    filepath = \
+        f'{plot_output_path}_model_features_tsne.png'
+    compute_tsne(
+        model,
+        data_subset,
+        logging_dir,
+        filepath,
+        title,
+        use_raw_features=(repr_type == "VGG"),
+        num_classes=num_classes,
+        legend_type=legend_type,
+    )
+    if include_raw_features:
         filepath = \
-            f'{plot_output_dir}{repr_type}_{template_data}_{test_data}_model_features_tsne.png'
-        emb_data = compute_tsne(
+            f'{plot_output_path}_raw_features_tsne.png'
+        compute_tsne(
             model,
             data_subset,
             logging_dir,
             filepath,
-            title,
-            use_raw_features=False,
-            num_classes=num_classes
-        )
-        filepath = \
-            f'{plot_output_dir}{repr_type}_{template_data}_{test_data}_raw_features_tsne.png'
-        emb_data = compute_tsne(
-            model,
-            data_subset,
-            logging_dir,
-            filepath,
-            title,
+            title + " (Raw Features)",
             use_raw_features=True,
-            num_classes=num_classes
+            num_classes=num_classes,
+            legend_type=legend_type,
         )
     return logging_dir
 
@@ -281,7 +257,7 @@ if __name__ == '__main__':
             num_per_id=num_per_id,
             num_pca_dim=num_pca_dim,
             num_thresh=num_thresh,
-            thresh=0.7
+            thresh=0.1
         )
         logging_dirs.append(logging_dir)
     file_tag = f'hog_vgg_all_{test_data}.png'
