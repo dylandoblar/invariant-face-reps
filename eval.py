@@ -274,10 +274,12 @@ if __name__ == '__main__':
             f'{data_dir}ill_{template_data}_mvn_template/img'
         test_dir = f'{data_dir}ill_{test_data}_mvn_test/img'
         for repr_type in repr_types:
-            if repr_type=="HOG": logging_dir = \
-                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}/'
-            else: logging_dir = \
-                f'{main_logging_dir}{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
+            if repr_type == "HOG":
+                logging_dir = \
+                    f'{main_logging_dir}{repr_type}_{template_data}_{test_data}/'
+            else:
+                logging_dir = \
+                    f'{main_logging_dir}{repr_type}_{template_data}_{test_data}_{vgg_model_type}/'
             run_experiment(
                 repr_type,
                 template_dir,

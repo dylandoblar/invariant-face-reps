@@ -11,14 +11,21 @@ from pprint import pprint
 import tensorflow as tf
 from skimage.transform import rescale, resize
 from tensorflow.keras.models import load_model, Sequential, Model
-from tensorflow.keras.layers import ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout, \
-    Flatten, Activation, Dense
 
 from utils import gen_balanced_pairs_from_dataset, load_dataset, plot_roc, scores_to_acc, write_csv
 
 
 class VGGModel:
-    def __init__(self, vgg_face=True, vgg_model_path=None, normalize=False, thresh=0.5):
+    def __init__(
+        self,
+        tuning_dataset_dir,
+        vgg_face=True,
+        vgg_model_path=None,
+        normalize=False,
+        thresh=0.5,
+        num_template_samples_per_id=0,
+        num_template_ids=0,
+    ):
         # TODO(katiemc): better default thresh
         '''
         Wrapper class for VGG model.
@@ -28,6 +35,9 @@ class VGGModel:
         normalize(bool): whether activations should be L2-normalized before computing cosine sims.
             normalization is probably not necessary since L2 normalization is performed with cosine
         '''
+        self.tuning_img_id_pairs = None
+        self.num_tuning_ids = num_template_ids  # not templates, but name makes eval code simple
+        self.num_tuning_samples_per_id = num_template_samples_per_id
         tf.autograph.set_verbosity(0)
         if vgg_face:
             # use VGG-Face model with pre-trained weights
@@ -63,10 +73,10 @@ class VGGModel:
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
-        #img = tf.keras.applications.vgg16.preprocess_input(img)
-        #print("pre-act shape: ", np.shape(self.model.predict(img)))
-        activations = np.squeeze(self.model.predict(img)[0])#[0]
-        #print("post-act shape:", np.shape(activations))
+        # img = tf.keras.applications.vgg16.preprocess_input(img)
+        # print("pre-act shape: ", np.shape(self.model.predict(img)))
+        activations = np.squeeze(self.model.predict(img)[0])  # [0]
+        # print("post-act shape:", np.shape(activations))
         return activations
 
     def score(self, ex1, ex2):
@@ -86,7 +96,10 @@ class VGGModel:
             if norm2 >= 1e-7:
                 ex2_activations /= norm2
         # compute score as normalized dot product
-        score = cosine_similarity(ex1_activations.reshape(1, -1), ex2_activations.reshape(1, -1)).item()
+        score = cosine_similarity(
+            ex1_activations.reshape(1, -1),
+            ex2_activations.reshape(1, -1)
+        ).item()
         return score
 
     def predict(self, ex1, ex2):
@@ -97,6 +110,54 @@ class VGGModel:
         '''
         score = self.score(ex1, ex2)
         return int(score > self.threshold)
+
+    def tune_threshold(self, num_samples=-1, logging_dir=None):
+        '''
+        Tune threshold using the tuning examples.
+        num_samples pairs are sampled from all samples in the tuning set such that there are
+        equal number same ID and different ID pairs. Threshold is tuned by computing the accuracy
+        for each bin of possible thresholds (a threshold between two scores in the sampled pair
+        in sorded order will not change the accuracy), then choosing the threshold to be in the
+        center of the bin of possible thresholds that maximizes accuracy on the sampled tuning
+        pairs.
+        num_samples(int): num_samples//2 pairs will be sampled with (1) the same label and
+                          (2) different labels for tuning the threshold. If -1, use as many
+                          samples as possible while keeping classes balanced.
+        logging_dir(str): where to save threshold data and/or plots
+        Returns: tuned threshold(float)
+        '''
+        self.tuning_img_id_pairs = load_dataset(
+            self.tuning_dataset_dir,
+            num_ids=self.num_tuning_ids,
+            num_samples_per_id=self.num_tuning_samples_per_id,
+        )
+        print('Tuning dataset loaded')
+        print('Tuning threshold:')
+        pairs = gen_balanced_pairs_from_dataset(self.tuning_img_id_pairs, num_samples)
+        score_label_pairs = []
+        for idx1, idx2 in tqdm(pairs):
+            ex1, label1 = self.tuning_img_id_pairs[idx1]
+            ex2, label2 = self.tuning_img_id_pairs[idx2]
+            score = self.score(ex1, ex2)
+            label = int(label1 == label2)
+            score_label_pairs.append((score, label))
+        score_label_pairs.sort(key=lambda x: x[0])
+        # choose the thresh that minimizes the number of misclassified pairs
+        tuning_scores = list(zip(*score_label_pairs))[0]
+        # this is not as efficient as it could be, but it's plenty fast
+        accuracies = [scores_to_acc(score_label_pairs, thresh) for thresh in tuning_scores]
+        if logging_dir is not None:
+            if not os.path.exists(logging_dir):
+                os.makedirs(logging_dir)
+            write_csv(score_label_pairs, ["score", "label"], logging_dir+"threshold_data.csv")
+            plot_roc(score_label_pairs, logging_dir+"threshold_roc.png")
+        best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
+        # take the average of the scores on the inflection point as the threshold
+        thresh = (tuning_scores[best_idx] + template_scores[best_idx+1]) / 2
+        print(f'Tuned threshold : {thresh}')
+        tuning_acc = scores_to_acc(score_label_pairs, thresh)
+        print(f"Accuracy on the tuning dataset with tuned threshold : {template_acc}")
+        return thresh
 
 
 class TemplateModel:
@@ -286,8 +347,11 @@ class TemplateModel:
         return thresh
 
 
-if __name__=='__main__':
-    vgg_face_model = VGGModel(vgg_face=True, vgg_model_path='/om2/user/ddoblar/ill-inv/models/vgg_model_face.h5')
+if __name__ == '__main__':
+    vgg_face_model = VGGModel(
+        vgg_face=True,
+        vgg_model_path='/om2/user/ddoblar/ill-inv/models/vgg_model_face.h5',
+    )
     vgg_face_model.model.summary()
     vgg_imagenet_model = VGGModel(vgg_face=False)
     vgg_imagenet_model.model.summary()
