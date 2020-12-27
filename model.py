@@ -63,7 +63,7 @@ class VGGModel:
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
-        img = tf.keras.applications.vgg16.preprocess_input(img)
+        #img = tf.keras.applications.vgg16.preprocess_input(img)
         #print("pre-act shape: ", np.shape(self.model.predict(img)))
         activations = np.squeeze(self.model.predict(img)[0])#[0]
         #print("post-act shape:", np.shape(activations))
