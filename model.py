@@ -25,6 +25,8 @@ class VGGModel:
         thresh=0.5,
         num_template_samples_per_id=0,
         num_template_ids=0,
+        num_thresh_samples=-1,
+        logging_dir=None,
     ):
         # TODO(katiemc): better default thresh
         '''
@@ -35,6 +37,7 @@ class VGGModel:
         normalize(bool): whether activations should be L2-normalized before computing cosine sims.
             normalization is probably not necessary since L2 normalization is performed with cosine
         '''
+        self.tuning_dataset_dir = tuning_dataset_dir
         self.tuning_img_id_pairs = None
         self.num_tuning_ids = num_template_ids  # not templates, but name makes eval code simple
         self.num_tuning_samples_per_id = num_template_samples_per_id
@@ -66,7 +69,7 @@ class VGGModel:
                 new_model.add(layer)
             self.model = new_model
         self.normalize = normalize
-        self.threshold = thresh
+        self.threshold = self.tune_threshold(num_thresh_samples, logging_dir)#thresh
         # features are the same as representation
         self.compute_feats = self.compute_vgg_feats
 
@@ -153,10 +156,10 @@ class VGGModel:
             plot_roc(score_label_pairs, logging_dir+"threshold_roc.png")
         best_idx = max(enumerate(accuracies), key=lambda x: x[1])[0]
         # take the average of the scores on the inflection point as the threshold
-        thresh = (tuning_scores[best_idx] + template_scores[best_idx+1]) / 2
+        thresh = (tuning_scores[best_idx] + tuning_scores[best_idx+1]) / 2
         print(f'Tuned threshold : {thresh}')
         tuning_acc = scores_to_acc(score_label_pairs, thresh)
-        print(f"Accuracy on the tuning dataset with tuned threshold : {template_acc}")
+        print(f"Accuracy on the tuning dataset with tuned threshold : {tuning_acc}")
         return thresh
 
 
