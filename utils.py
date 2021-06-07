@@ -12,8 +12,8 @@ from sklearn.metrics import auc
 import matplotlib
 import shutil
 
-matplotlib.rcParams['font.sans-serif'] = "Computer Modern Sans Serif"
-matplotlib.rcParams['font.family'] = "sans-serif"
+# matplotlib.rcParams['font.sans-serif'] = "Computer Modern Sans Serif"
+# matplotlib.rcParams['font.family'] = "sans-serif"
 
 
 axis_text_size = 18
