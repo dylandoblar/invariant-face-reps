@@ -28,7 +28,6 @@ class VGGModel:
         num_thresh_samples=-1,
         logging_dir=None,
     ):
-        # TODO(katiemc): better default thresh
         '''
         Wrapper class for VGG model.
         vgg_face(bool): if True, use a VGG-Face model pre-trained on celebrity faces;
@@ -69,7 +68,7 @@ class VGGModel:
                 new_model.add(layer)
             self.model = new_model
         self.normalize = normalize
-        self.threshold = self.tune_threshold(num_thresh_samples, logging_dir)#thresh
+        self.threshold = self.tune_threshold(num_thresh_samples, logging_dir)  # thresh
         # features are the same as representation
         self.compute_feats = self.compute_vgg_feats
 
@@ -250,8 +249,6 @@ class TemplateModel:
     def compute_vgg_feats(self, img):
         img = resize(img, (224, 224, 3), anti_aliasing=True)
         img = np.expand_dims(img, axis=0)
-        # TODO(ddoblar): uncomment next line for preprocessing of input img
-        # img = tf.keras.applications.vgg16.preprocess_input(img)
         activations = self.model.predict(img)[0]
         return activations
 

@@ -6,8 +6,6 @@ from utils import *
 from sklearn.metrics import classification_report, f1_score, matthews_corrcoef, auc
 import shutil
 
-# NOTE(katie): run "source env/bin/activate" to start this virtualenv
-
 
 def evaluate(model, dataset, num_samples=-1, logging_dir=None):
     '''
@@ -62,8 +60,6 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
         "f1_score": f1_score(ytrue, ypred)
     }
 
-    # print(f"[evaluate] num_correct : {num_correct}")
-    # print(f"[evaluate] num_pairs : {num_pairs}")
     print(f"[evaluate] accuracy : {accuracy}")
     print(f'number wrong with same label : {fn}')
     print(f'number wrong with diff label : {fp}')
@@ -82,7 +78,6 @@ def evaluate(model, dataset, num_samples=-1, logging_dir=None):
             ["fname1", "label1", "fname2", "label2"],
             logging_dir + "correct_pairs.csv"
         )
-        # analyze_errors(wrong_pairs, correct_pairs, sampled_identies, logging_dir)
         roc_data = plot_roc(
             get_model_scores(model, dataset, pairs),
             logging_dir+"test_threshold_roc.png"
@@ -176,13 +171,10 @@ def run_experiment(
     num_thresh=500,
     thresh=0.5
 ):
-    # random.seed(7)
+    random.seed(7)
 
     if not os.path.exists(logging_dir):
         os.makedirs(logging_dir)
-    # else:
-    #     print("skipping: ", logging_dir)
-    #     return logging_dir  # don't re-run experiment if directory exists (change if need rerun)
 
     # create model
     if repr_type == "VGG":
@@ -219,7 +211,7 @@ if __name__ == '__main__':
     do_tsne = False
 
     main_logging_dir = f'./logging_dir/'
-    data_dir = f'/om2/user/ddoblar/parametric-face-image-generator/data/output/'
+    data_dir = f'./data/'
     styles = ['b-*', 'r-o', 'g--', 'p-*', 'm-o', 'c--', 'y-*', 'r-^', 'k-o', 'g-*']
     all_metrics = ["mcc", "auc", "accuracy", "f1_score"]
 

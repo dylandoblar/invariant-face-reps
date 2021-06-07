@@ -1,10 +1,10 @@
-# Face verification with illumination-invariant representations
+# Biologically plausible illumination-invariant face representations
+Dylan D. Doblar (ddoblar@mit.edu), Katherine M. Collins, Bernhard Egger, Tomaso Poggio; Massachusetts Institute of Technology
 
-We investigate invariance properties of face representations under varying illumination conditions.  From scratch, we implement and extend the model proposed by [1] which uses a templates-and-signatures approach to generate unique representations for query points unseen during training.  The model extracts face features from a set of template images, where several face identities have a small number of example images under different transformations. In our case, we consider transformations involving both natural and extreme illumination conditions; the original work only considers 2D affine transformations as well as yaw rotations. Further, the raw features originally used in [1] are histograms of oriented gradients (HOG); we evaluate the performance of such a feature extractor against an equivalent model that uses the penultimate activations of a pre-trained VGG-Face network [2] (a VGG16-based CNN designed and trained for facial recognition) as the raw feature extractor. After the feature extraction step, the model — which is formulated identically for both the HOG and VGG-Face features — then computes the cosine similarity between all template identities and each image in a query pair to obtain the signature per image.  If the signatures of the query images are close (e.g., have cosine similarity above some threshold), the model predicts that they are the same identity.  We perform experiments to determine whether this templates-and-signatures model can learn illumination-invariant face representations, and whether the deep convolutional architecture of VGG-Face produces features which are more effective than HOG representations.  
+Humans possess a remarkable ability to identify objects — and faces in particular — under highly variable conditions. The invariance hypothesis (Leibo et al., 2015) posits that the goal of the human ventral visual system is to learn representations that are invariant to identity-preserving transformations. One computational approach to learn such representations is the templates-and-signatures model proposed by Liao et al. (2013). The model measures similarities between template images and unseen query images to produce discriminative and invariant signatures. From a small number of template examples, the model can learn invariance to group transformations (e.g., scaling, translation, and in-plane rotation) for new object classes, whereas object-class-specific templates are required for non-group transformations (e.g., pose). Here, we probe the capacity of this approach to handle variation in illumination — a complex set of non-group transformations — on a face verification task. A 3D morphable face model is used to generate synthetic datasets under both natural and extreme illumination. We benchmark the templates-and-signatures approach against VGG16, a convolutional neural network (CNN), and compare the effects of a generic object-class versus domain-specific learned prior by pre-training VGG16 either on ImageNet or human faces. We find that under natural illumination settings, the templates-and-signatures model effectively solves the face verification task, outperforming both CNN variants. Additionally, the templates-and-signatures model’s learned representations are impressively invariant to extreme variations in illumination and generalize best when using natural illumination templates. These invariances hold even with tens of training examples, which is particularly striking behavior relative to the CNNs that have been pre-trained on millions of images. Coupled with its simplicity and its implications for a biologically plausible sequence of class-specific developmental periods for learning invariances, the model’s ability to generalize to out-of-distribution illumination settings from few examples lends credence to a templates-and-signatures account of feed-forward object recognition.
 
-We discover that under natural illumination settings, both model types effectively solve the face verification task. Additionally, HOG and VGG-Face are impressively invariant to even extreme variations in illumination. On synthetic data, HOG largely outperforms; however, only VGG-Face extends to real-world images. Interestingly, we also find that natural illumination templates yields better generalization for identification under novel extreme illumination, possibly because of the more accessible structural information in naturally lit images. 
+Acknowledgements: We thank Qianli Liao for his advice on how to implement the templates-and-signatures model. This work was funded in part by the Center for Brains, Minds and Machines (CBMM), NSF STC award CCF-1231216. B. Egger is supported by a PostDoc Mobility Grant, Swiss National Science Foundation P400P2 191110.
 
-Future work could investigate this hypothesis and extend the training regime to include out-of-distribution samples (i.e., through domain randomization). Additional next steps include exploring more complicated, combinatorial transformations, such as pose with illumination, with which humans excel, as well as comparing the HOG and deep-net based models against a graphics-engine based approach. Cognitive plausibility of these models could be assessed against human experiments run on Amazon Mechanical Turk.
 
 ## Running the code
 
@@ -13,13 +13,18 @@ Install the necessary dependenceies by running:
 pip install -r requirements.txt
 ```
 
-The template model is implemented in `model.py`, and can be initialized with either HOG or VGG-Face features.  The evaluation pipeline for the model is implemented in `eval.py`, along with several functions useful in running our experiments.  The dataloader and several useful evaluation and plotting functions are in `utils.py`.  To run our full experimentation and plotting pipeline, run 
+The template model is implemented as `TemplateModel` in `model.py`, and can be initialized with either HOG or VGG-Face features.  The evaluation pipeline for the model is implemented in `eval.py`, along with several functions useful in running our experiments.  The dataloader and several useful evaluation and plotting functions are in `utils.py`.  To run our full experimentation and plotting pipeline, run 
 ```
 python eval.py
 ```
 
-## References
+## V-VSS 2021 Presentation
+```
+TODO(ddoblar): upload video somewhere and link it here
+```
 
-[1] Liao, Qianli, Joel Z. Leibo, and Tomaso Poggio. "Learning invariant representations and applications to face verification." _Advances in neural information processing systems_. 2013.
-
-[2] Parkhi, Omkar M., Andrea Vedaldi, and Andrew Zisserman. "Deep face recognition." 2015.
+## Citation
+If you use this code in your work please cite our V-VSS abstact:
+```
+TODO(ddoblar): bibtex citation
+```
